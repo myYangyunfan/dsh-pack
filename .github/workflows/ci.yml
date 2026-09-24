@@ -37,6 +37,12 @@ jobs:
           node tools/audit/extract-kernel-snapshots.mjs "$RUNNER_TEMP/kernel/node_modules"
       - name: node tools/audit/index.js
         run: node tools/audit/index.js
+      # 发布物内容门禁：npm pack 真实产物，离线可跑。
+      # 目前会因 dsh-side-session / dsh-super-injector 缺 LICENSE 而红 —— 那是
+      # 真实的发布阻塞（BSD-3 需上游原文、@dsh-external 出处未核实），
+      # 不许用白名单把它静音；补齐出处或决定不发布这两个包之后自然转绿。
+      - name: node tools/itest/pack-audit.mjs
+        run: node tools/itest/pack-audit.mjs
 
   unit:
     name: 单测

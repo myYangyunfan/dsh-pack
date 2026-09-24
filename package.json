@@ -13,6 +13,7 @@
     "meta": "node tools/build-meta-patches.mjs",
     "test": "node --test \"packages/*/test/*.test.js\" \"packages/*/test/*.test.mjs\"",
     "itest": "node tools/itest/boot-desktop-profile.mjs --job=j1",
+    "pack-audit": "node tools/itest/pack-audit.mjs",
     "check-syntax": "node tools/audit/syntax.js"
   },
   "keywords": [

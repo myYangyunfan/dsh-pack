@@ -3,7 +3,8 @@
 //
 // ⚠ 本文件当前不跑（放在 test/disabled/ 下，不被 packages/*/test/*.test.mjs 收到）。
 // 原先的运行方式（scripts/test.ps1 把插件放进 DSH 的 node_modules 树 + 临时 USERPROFILE）
-// 已随自制壳一起删除；为什么不能直接恢复、以及已经修好的部分，见下面第 81 行起的长注释。
+// 已随自制壳一起删除；为什么不能直接恢复、以及已经修好的部分，见本文件内
+// 「⚠ 本文件整体挂起」那段长注释（不要按行号找，行号会漂）。
 // 放在 disabled/ 而不是留在 test/ 里 exit 0：后者会被测试报告计成「1 pass」，
 // 等于把一份没验证任何东西的文件伪装成通过。
 import assert from "node:assert";
@@ -86,15 +87,21 @@ process.env.DSH_HOME = ISOLATED_DSH_HOME;
 //
 // 1) runner 没了：它依赖自制壳的 scripts/test.ps1 把插件放进 DSH 的 node_modules 树，
 //    并准备临时 USERPROFILE。隔离现在由上面的 mkdtemp + DSH_HOME 自己负责（已修）。
-// 2) 若干断言对被测实现的预期已过时（桥接插件 vendored 到 v0.8.0）。逐条实测如下：
-//    · 「新会话使用配置的工作目录」：poolMocks 的键实测是会话 id
-//      ["dsh-bridge-test-a","dsh-bridge-test-b","dsh-bridge-test-c",
-//       "wx-mockuser-im.wechat","attached-session-999"]，从不按工作目录基名登记，
-//      所以 poolMocks.get("remote-office-ws") 的前提不成立。
-//    · 「agent 使用 openclaw-custom provider」：agentOptionsLog 末条的 provider/model
-//      与 v0.8.0 的自定义端点路由不再一致。
-//    修它们要懂桥接层现实现的语义，属于该插件负责人的判断；我在这里逐条把断言改成
-//    「跳过」会把一份协议测试磨成什么都不验证的东西，比诚实挂起更糟。
+// 2) 有两块断言跑不过：「新会话使用配置的工作目录」（第 12 块）与
+//    「agent 使用 openclaw-custom provider」（第 13 块）。
+//    注意：我先前在这里写的「断言前提不成立（池键是会话 id）」是**错的**，已推翻。
+//    核对后的事实是断言与源码读起来都对得上，所以这更像实现/ mock 接线层面的问题：
+//      · 本文件 224 行 poolMocks.set(basename(opts.meta.cwd), …) —— 池 mock 的键
+//        **就是工作目录基名**；出现 "wx-mockuser-im.wechat" 这种键，是因为默认工作目录
+//        本身按池键命名（lib/index.js:915/928 key = "wx-" + sanitizeKey(from)）。
+//      · /new 确实会解绑微信：调用点 lib/index.js:914 传的是 binds: wxBinds，
+//        处理里 620 行 binds.delete(from)。所以不是「绑定没清」。
+//      · resolveSelection(198-204) 在 customBaseURL 非空时确实返回
+//        { provider: "openclaw-custom", model: customModel }。
+//    两条断言为何仍失败：未定位。方向在 ensureAgent 的会话复用路径（sessionStore 里
+//    已有会话 id 时走 resume，可能不再按新 workspace 建目录）以及 mock 实际收到的
+//    opts.agentOptions / opts.meta 形态。**不靠猜改断言**，交给桥接插件负责人判定。
+//    把每条失败断言逐条改成「跳过」会把一份协议测试磨成什么都不验证的东西，比诚实挂起更糟。
 //
 // 我先前写过的「宿主读 cordis config、测试改 settings，槽位不一致」这个归因是错的，
 // 已推翻并从本文件删除：lib/index.js:877 每条消息都 const cfg = liveConfig() || {}，
@@ -105,15 +112,16 @@ process.env.DSH_HOME = ISOLATED_DSH_HOME;
 //   · settleSent()：第 11/12 块原先「上一块回复还在飞就取基线」的假失败已解决；
 //   · 第 11 块白名单现在正反两向都验（白名单外忽略 + 白名单内有回复），
 //     单验拒绝等于「检查没实现」也能过。
-// 用 node:test 的 skip 登记，而不是 print 后 exit 0 ——
-// 后者会被报告计成「1 pass」，等于把一份没跑任何断言的文件伪装成通过（假绿）。
+// 恢复办法：删掉下面的 process.exit(0)，把文件移回 test/（会被 packages/*/test/*.test.mjs 收到），
+// 并先解决上面第 2 条那两个未定位的断言。
+// 不要用「console.log + exit(0)」就地假装跳过：那样报告会计成 1 pass，等于假绿。
 process.exit(0);
 
 // 必须在导入插件前设置，wechat.js 在模块加载时读取该环境变量
 process.env.OPENCLAW_BRIDGE_ILINK_BASE = "http://127.0.0.1:65411";
 // 用相对路径导入被测包，而不是包名：改名到 @dsh-pack/* 之后，
 // 按旧包名 self-import 会直接 ERR_MODULE_NOT_FOUND（这个测试就是那样静默失效的）。
-const mod = await import("../lib/index.js");
+const mod = await import("../../lib/index.js");
 const { name, inject, apply } = mod;
 
 const CHAT = "/openclaw-bridge/v1/chat/completions";

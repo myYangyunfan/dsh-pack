@@ -14,8 +14,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib",
-    "dsh.plugin.json"
+    "cordis.patch.yml",
+    "dsh.plugin.json",
+    "lib"
   ],
   "license": "BSD-3-Clause",
   "engines": {

@@ -27,9 +27,14 @@
 | 检查 | 命令 | 为什么是发布门禁而不只是 CI |
 | --- | --- | --- |
 | 静态审计 | `node tools/audit/index.js` | 6 项里 `publish-readiness` 是 **P0**：一个包写错就能让**整个官方客户端拒绝启动** |
+| 发布物内容 | `node tools/itest/pack-audit.mjs` | `npm pack` 真实产物：查 `files` 白名单有没有把 `node_modules`/`.map`（内嵌上游 TS 源码）/测试目录打进去，以及 bundle 的 `cordis.patch.yml` 有没有随包发布 —— 漏了就是「装得上、一个都不挂」 |
 | 单测 | `node --test "packages/*/test/*.test.js"` | — |
 | J1 组合 | `node tools/itest/boot-desktop-profile.mjs --job=j1` | 验证补丁层真挂得上、id 恰好出现一次、二次安装字节幂等 |
 | J2 tarball | `... --job=j2` | **只有 tarball 安装会暴露 `files` 白名单错误与 `private:true`**；路径安装会把这两类都掩盖掉 |
+
+> `pack-audit` 目前因 `dsh-side-session`、`dsh-super-injector` 缺 LICENSE 而红。
+> 这是**真实的发布阻塞**（BSD-3 要上游原文与署名人；`@dsh-external` 包的作者未核实），
+> 不要靠加白名单让它变绿：要么补齐出处，要么明确不发布这两个包并从 `tools/tiers.json` 摘掉。
 
 （`--job=j3` 单独跑，用来钉住 pnpm 构建脚本放行的文案与恢复路径，防止 `docs/recovery.md` 腐烂。）
 
