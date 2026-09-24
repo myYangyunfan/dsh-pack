@@ -85,6 +85,12 @@ DSH_KERNEL_BIN=/tmp/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js \
 - **测试必须隔离。** 一律把 `DSH_HOME` 指到 `mkdtemp` 的临时目录，
   **绝不触碰真实 `~/.dsh`**，也不写 `%APPDATA%`。`tools/itest/boot-desktop-profile.mjs`
   开头就有「检测到真实 `~/.dsh` 或仓库外路径就拒绝执行」的断言，别绕过它。
+  这条是踩过才写下的：`packages/dsh-openclaw-bridge` 那份协议测试裸跑时，
+  就往真实 `~/.dsh/openclaw-bridge/` 写过 `session-map.json`、`workspace/` 与日志。
+- **跑不了的测试要显式排除，不要伪装成通过。** 把文件挪进该包的 `test/disabled/`
+  （不会被 `packages/*/test/*.test.*` 收到），并在文件顶部写清为什么不跑、实测证据、恢复步骤。
+  反例：留在 `test/` 里 `console.log('SKIP')` + `process.exit(0)`，报告会计成「1 pass」——
+  那是假绿，比根本没有这个文件更糟。
 
 ## 没有的工具链
 
