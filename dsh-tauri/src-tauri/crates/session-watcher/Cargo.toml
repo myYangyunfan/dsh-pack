@@ -1,9 +1,0 @@
-[package]
-name = "session-watcher"
-description = "会话监视：完成通知限流 + 当前会话跟踪（zstd 扫描在 Phase 3 接入）"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-
-[dependencies]

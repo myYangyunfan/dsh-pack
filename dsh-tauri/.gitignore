@@ -1,4 +1,0 @@
-src-tauri/target/
-gen/
-*.log
-package-payload/

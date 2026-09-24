@@ -1,9 +1,0 @@
-[package]
-name = "fence"
-description = "文件围栏：fileRoots 越界拒绝 + 「文件」视图还原（Phase 3 补 zstd 首帧解析）"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-
-[dependencies]

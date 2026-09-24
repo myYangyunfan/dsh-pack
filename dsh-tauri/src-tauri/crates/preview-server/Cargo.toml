@@ -1,9 +1,0 @@
-[package]
-name = "preview-server"
-description = "预览静态服务：127.0.0.1 只读文件服务（端口预览 + PoC 页载体）"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-
-[dependencies]
