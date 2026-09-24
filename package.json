@@ -1,0 +1,29 @@
+{
+  "name": "dsh-pack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH Pack —— 装进官方 DeepSeek Harness 客户端的插件整合包",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "audit": "node tools/audit/index.js",
+    "meta": "node tools/build-meta-patches.mjs",
+    "test": "node --test \"packages/*/test/*.test.js\" \"packages/*/test/*.test.mjs\"",
+    "itest": "node tools/itest/boot-desktop-profile.mjs --job=j1",
+    "check-syntax": "node tools/audit/syntax.js"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin-pack"
+  ],
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.1",
+    "semver": "^7.7.3",
+    "yaml": "^2.9.0"
+  },
+  "_devDependenciesNote": "根 devDependencies 里的 @deepseek-ai/dsh 只为跑测试提供内核闭包：插件宿主半边会 import 内核包，ESM 要求它出现在根 node_modules。工作区根是 private、永不发布，所以这不违反「@deepseek-ai/* 只能进各插件包的 peerDependencies」——那条规则管的是发布包装进用户 profile 后会不会出现第二份物理拷贝。"
+}

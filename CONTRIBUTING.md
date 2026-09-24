@@ -1,119 +1,115 @@
-# 贡献指南（DSH Desktop）
+# 贡献指南
 
-感谢你愿意为 dsh_desktop 贡献代码。本文档约定**提交 PR 前必须完成的步骤**，目的是让维护者 review 更轻松、合并更快。不满足硬性要求的 PR 会被打回补测。
+本仓库是 **DSH Pack** —— 装进官方 DeepSeek Harness 客户端的插件整合包。
+交付物只有 npm 包：**不再有桌面壳、安装器、托盘、自动更新链**，也**不再修改上游内核**。
 
-## 仓库结构速览
-
-| 路径 | 说明 |
-| --- | --- |
-| `dsh-desktop/` | 客户端主体：内置 dsh CLI 与 Node 运行时、构建期补丁与自愈脚本（原 Electron 外壳已下线） |
-| `dsh-tauri/` | 桌面壳（Rust + Tauri/WebView2）：`src-tauri/` Rust 工作区、`sidecar/` Node 侧车、`scripts/stage-payload.sh` 打包暂存 |
-| `dsh-desktop/scripts/` | 构建期补丁、自愈模块；测试统一放 `scripts/test/` |
-| `dsh-desktop/assets/plugins/` | 内置 Cordis 插件包 |
-| `dsh-desktop/assets/agent-presets/` | 内置 Agent 预设 |
-| `.github/workflows/release.yml` | 三平台五 job 发布流水线（tag 触发） |
-| `landing/` | 官网落地页 |
-| `openclaw-dsh-bridge/` | 微信 ClawBot ↔ DSH 桥接插件 |
+动手前请先读 [`AGENTS.md`](AGENTS.md)（约定与边界）与
+[`docs/spike-official-client.md`](docs/spike-official-client.md)（对真装官方客户端的实测记录）。
 
 ## 开发环境
 
-- Windows 为主平台（桌面壳是 Tauri + WebView2，集成测试依赖桌面环境；macOS/Linux 可做纯函数开发）
-- Node.js ≥ 22（本地 v24 亦可）
-- 初始化与启动：
-
-  ```powershell
-  cd dsh-desktop
-  npm ci
-
-  # 开发运行（入口在桌面壳侧；仓库根没有 npm start 脚本）
-  cd ..\dsh-tauri\src-tauri\src\app
-  cargo run
-  ```
-
-## 代码组织约定
-
-- **插件**：独立 npm 包放 `dsh-desktop/assets/plugins/<name>/`，通过 `cordis.patch.yml` 声明对宿主的扩展点
-- **Agent 预设**：`assets/agent-presets/<preset>/`，`agent.cordis.yml` 描述元数据，`.mjs` 文件作为生命周期入口
-- **主进程**：拆分独立脚本（watchdog、session-watcher、updater、balance、wsl-backend 等），通过 IPC/事件与桌面壳（`dsh-tauri/` Rust 侧 + `sidecar/` Node 侧车）协作，不要堆叠进单文件
-- **构建期补丁**：集中在 `scripts/patch-*.js`，按功能域命名，便于单独启用/禁用
-- **可单测纯函数**：收敛到 `scripts/lib/`（如 `patch-engine.js`、`versions.js`、`github-release-assets.js`），网络与文件编排留在调用方，方便 `node --test` 覆盖
-- **测试**：统一放 `scripts/test/`，按粒度命名（见下）
-
-## 测试要求（硬性）
-
-> 任何**功能新增或 bug 修复，必须配套自动化测试**。纯逻辑改动不给测试、bug 修复不带回归用例的 PR，直接打回。
-
-| 场景 | 要求 | 运行命令 |
-| --- | --- | --- |
-| 新增纯函数 / 模块 | `scripts/test/unit-*.test.js`，覆盖主分支 + 边界 + 错误分支 | `npm test` |
-| bug 修复 | 必须带回归用例，测试头部注明 issue 号（参照 `unit-slot-compat` 的 #87） | `npm test` |
-| 桌面功能逻辑 | `scripts/test/desktop-*.test.js` | `npm test` |
-| 崩溃 / 自恢复场景（真机启动链） | 在 `scripts/test/ta3-boot-chain.test.js`（启动链一条龙）或 `ta13-soak-*.test.js`（持久 / 盘故障 soak）追加场景 | `npm test` |
-| 桌面壳（Rust / sidecar） | `dsh-tauri/src-tauri` 下 `cargo test`；sidecar 用 `node --test dsh-tauri/sidecar/cli.test.js` | 见左 |
-
-测试守则：
-
-- 全部测试必须落在**隔离临时目录**（DSH_HOME / userData），绝不触碰真实 `~/.dsh` 与 `%APPDATA%\DSH Desktop`
-- 提交前必须本地全量跑通：
-
-  ```powershell
-  node scripts/check-syntax.js   # 语法预检（prepack / predist 构建时也会自动执行）
-  npm test                       # node --test 自动发现 scripts/test/*.test.js
-  ```
-
-- 已知：`unit-updater` 两个 fallback 用例（`0.0.0` 兜底）仅在 `@deepseek-ai/dsh` **未安装**时真正运行；本地/CI 装好依赖会显示 `skip`，属预期而非失败。
-
-## PR 流程
-
-### 1. 切分支
-
-从 `main` 拉取，命名规范：
-
-```
-feature/<简述>    新功能
-fix/<简述>        bug 修复
-refactor/<简述>   重构
-docs/<简述>       文档
+```bash
+pnpm install
+node tools/audit/index.js              # 静态门禁
+node --test "packages/*/test/*.test.js"
 ```
 
-### 2. 提交信息
+前置只有一个：Node ≥ 24、pnpm 11。
+**不需要** Rust / cargo / Visual Studio / Electron / NSIS / LibreOffice —— 这些随自制壳一起退场了。
 
-- **单一职责**：一次提交只做一件事，避免夹带无关改动
-- 格式：`<类型>: <简述>（#issue号）`，类型取 `feat / fix / refactor / perf / docs / test / chore / build`
+跑集成用例（`tools/itest/`）还需要一份**从 npm 装的干净官方内核**：
 
-### 3. 开 PR
+```bash
+npm i --no-audit --no-fund --ignore-scripts --prefix /tmp/kernel @deepseek-ai/dsh@0.1.7-rc.1
+DSH_KERNEL_BIN=/tmp/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js \
+  node tools/itest/boot-desktop-profile.mjs --job=j1
+```
 
-- 使用仓库内置模板（`.github/pull_request_template.md`），逐项填写
-- 关联 issue 用 `Closes #N`
-- **必须勾选"测试与验证"清单**，并附上 `npm test` 实测结果（如 `357 pass / 0 fail / 2 skip`）
+国内网络取不到 npm 官方源时，改 `.npmrc` 里的 registry 走 npmmirror，
+**不要**在脚本里硬编码 registry。
 
-### 4. CI 检查（GitHub）
+## 目录与分层
 
-push 后等待 `ci` workflow 通过（语法预检 + 全量单测）。**CI 红灯时先修复，再请求 review。**
+| 位置 | 放什么 |
+| --- | --- |
+| `packages/<目录名>/` | 一个插件包。npm 名必须是 `@dsh-pack/<目录名>`，**目录名与包名尾段严格一致** |
+| `packages/meta-<分层>/` | 分层元包。它的 `cordis.patch.yml` 是**生成物**，禁止手改 |
+| `packages/host-capabilities/` | 宿主能力探针，构建期内联库，不是 bundle |
+| `tools/tiers.json` | 分层 → 成员清单，唯一事实源 |
+| `tools/build-meta-patches.mjs` | 生成各元包补丁层（幂等，重跑必须逐字节一致） |
+| `tools/audit/` | 6 项离线静态门禁 |
+| `tools/itest/` | 真装真组合的集成校验（J1 组合 / J2 tarball / J3 构建脚本放行） |
 
-### 5. Review 迭代
+当前分层：`core`(18)、`plus`(11)、`knowledge`(2)、`pocket`、`bridge`、`compaction`。
+分层是**加性**的、彼此不重叠，也**不做嵌套**（实测嵌套/传递依赖不会成为 bundle，会静默不挂载）。
 
-- 维护者会在 PR 内逐条评论；按反馈 push 到同一分支即可
-- 保持 diff 聚焦：review 过程中不要再夹带无关重构或格式化
+## 加一个插件的完整清单
 
-### 6. 合并
+不是复制粘贴旧插件的目录就完事，每一条都有对应的门禁在拦：
 
-- 由维护者 squash merge（一个 PR 合入为一个提交到 `main`）
-- 合并后删除源分支
+1. 目录放 `packages/<名字>/`，`package.json` 的 `name` = `@dsh-pack/<名字>`。
+2. 写 `cordis.patch.yml`：顶层 YAML **数组**，一个 `insert` 块，一行 `{id, name}`。
+   **`id` 一旦发布就永不修改**（补丁按 id 整行替换、不做字段合并；改 id 会让用户
+   写在家层的 `disabled` 覆盖变孤儿）。历史疤见 issue #104。
+3. `package.json` 声明 `dsh.bundle.patch: "./cordis.patch.yml"`。
+   **没有这一条的包，装进去是一个插件都不会挂，而且不报错。**
+4. `id` 不得与 `tools/audit/kernel-entry-ids.json`（官方内核 199 个 id）撞名。
+   撞上的后果是静默顶替内核那一条——`plugin-manager` 曾这样砖掉过官方插件管理器。
+5. 内核包（`@deepseek-ai/dsh*`、`@deepseek-ai/cordis` 等）**只能放 `peerDependencies`**。
+   放进 `dependencies` 会在用户 profile 里装出第二份物理拷贝 →
+   `multiple active Loader sources` → **官方客户端拒绝启动**。
+6. `peerDependencies` 里 `@deepseek-ai/dsh*` 的区间统一 `>=0.1.0-rc.6 <2`。
+7. 声明了 `dsh.client` 就必须有**可解析到的** `exports["./client"]`，
+   且 `dsh.client.platform` 保持 `"web"`（别改成 `"desktop"`，改了会静默坏）。
+8. `dsh.client.inject` / `external` 里的每个包名都要在
+   `tools/audit/kernel-packages.json` 里真实存在。引用不存在的包**不响亮失败**，
+   只表现为页内半边静默消失。
+9. 写 `files` 白名单（否则 npm 会把 `src/`、`test/`、`node_modules`、
+   带 `sourcesContent` 的 `.map` 全部打进去）。**不能是 `private: true`。**
+10. 有 `license` 字段；第三方出处要落进 `THIRD_PARTY_NOTICES.md` 与 `docs/attributions.md`。
+11. 加进 `tools/tiers.json` 的某一层，跑 `node tools/build-meta-patches.mjs` 重新生成元包补丁层。
+12. 写 `packages/<名字>/test/*.test.js`，`node --test` 过。
 
-### 7. 发布（仅维护者）
+做完跑 `node tools/audit/index.js`，它会把这 12 条里能机器检查的全部拦一遍。
 
-打 tag（如 `v0.3.11`）推送到 GitHub → `release.yml` 自动构建三平台五产物（win/mac/linux × x64/arm64）→ 在 GitHub Releases 创建 Release 并配置资产。`main` 分支保持与 Gitee 镜像同步。
+## 测试要求
 
-## 双端仓库
+- **功能新增 / bug 修复必须带测试。** 纯函数进 `packages/<包>/test/`，用 `node --test`。
+  bug 回归用例头部注明 issue 号。
+- **新守卫必须配反证。** 只测「正常输入给正确答案」不算测过——要把判据一项项拆掉，
+  看结论是否随之改变；否则说明判据根本没起作用。
+  （这条是真付出过代价的：`host-capabilities` 第一版把「`updates` 是函数」当判据写错了，
+  正是因为先有了「协议不匹配就不能判官方」这类反证用例，才当场暴露。）
+- **断言不许假绿。** 「0 个包全部通过」不是通过。批量检查必须先断言样本量非零，
+  上游步骤失败时要短路掉下游断言。`tools/itest/` 里就是这么做的。
+- **测试必须隔离。** 一律把 `DSH_HOME` 指到 `mkdtemp` 的临时目录，
+  **绝不触碰真实 `~/.dsh`**，也不写 `%APPDATA%`。`tools/itest/boot-desktop-profile.mjs`
+  开头就有「检测到真实 `~/.dsh` 或仓库外路径就拒绝执行」的断言，别绕过它。
 
-项目同时镜像到 [GitHub](https://github.com/myYangyunfan/dsh_desktop) 与 [Gitee](https://gitee.com/my-yang-yunfan/dsh_desktop)。PR 在任一端提交均可，流程一致，合并后两边 `main` 保持同步。
+## 没有的工具链
 
-## 提交前自检清单
+本仓库**没有** eslint / typescript / tsconfig / prettier，也没有任何 lint 脚本。
+语法门禁只有 `tools/audit/syntax.js`（管 `node --check` 抓不到的模式扫描）加测试。
+**不要凭空发明工具链**，也不要在 PR 里顺手格式化无关文件。
 
-- [ ] 新增/修改的功能有对应测试（bug 有回归用例）
-- [ ] `node scripts/check-syntax.js` 通过
-- [ ] `npm test` 全绿
-- [ ] 涉及 UI 的改动附了截图
-- [ ] 涉及打包/构建的改动注明了验证方式（如 `npm test`、`bash dsh-tauri/scripts/stage-payload.sh`、`cargo test --manifest-path dsh-tauri/src-tauri/Cargo.toml`）
-- [ ] 没有把 `.tmp-*`、`_*.js/.diff` 等临时文件带进提交
+## 提交与 PR
+
+- commit：`<type>: <简述>（#issue号）`，type ∈ `feat/fix/refactor/perf/docs/test/chore/build`。
+- 分支：`feature/` `fix/` `refactor/` `docs/`。
+- 一次提交只做一件事；维护者 squash merge。
+- 中文 commit message 与中文注释（标识符、包名、错误串保持原文）。
+- 改动行为要带一条 changeset（`pnpm changeset`），否则不会进版本变更集。
+
+## 稳定性三原则（评审默认立场）
+
+1. **客户端必须能打开**——在插件包形态下这条更硬：一个写坏的包能让**整个官方客户端**
+   拒绝启动，而用户一旦按下恢复对话框，`sanitizeProfile` 会把我们的包**整体抹掉**。
+2. **兼容性不报错**，意外以日志收场，不以崩溃收场。
+3. **用户数据不动。**
+
+## 我们做不到的事（别在 PR 里试图复活）
+
+托盘 / 关窗常驻 / 一键重启、**系统级**会话完成通知、宠物原生悬浮窗、
+WSL 后端、自定义应用图标。这些是原生窗口管理能力，插件进程内无法复现，
+且已明确决定**不留任何原生伴侣进程**。
+余额取数、剪贴板图片落盘、文件一键还原这几件**已经**搬进插件宿主半边，照常可用。

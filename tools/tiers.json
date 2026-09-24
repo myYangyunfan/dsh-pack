@@ -1,0 +1,109 @@
+{
+  "_meta": "分层元包的唯一事实源（tier → 有序成员 + defaultDisabled 标记）。由 tools/build-meta-patches.mjs 消费：改这里 → 重跑生成器 → meta-*/cordis.patch.yml 自动跟随。成员目录名必须与 dsh-desktop/assets/plugins/ 下一致，且每个成员自带 cordis.patch.yml 与 package.json#dsh.bundle.patch（纯插件包形态下必须能单装）。",
+  "kernelVersion": "0.1.7-rc.1",
+  "packScope": "@dsh-pack",
+  "tiers": {
+    "core": {
+      "title": "核心体验层",
+      "summary": "18 个轻量纯客户端/宿主插件：余额与费用、文件变更追踪与还原、拖入/粘贴、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义。装完即用，无额外二进制、无网络副作用。",
+      "members": [
+        { "dir": "dsh-balance", "purpose": "DeepSeek 账户余额 + 本轮会话费用估算（对话统计栏 dock）" },
+        { "dir": "dsh-file-changes", "purpose": "会话文件更改投影（fileChanges）：为「文件」视图与回退提供数据" },
+        { "dir": "dsh-client-file-changes", "purpose": "「文件」视图：会话文件更改追踪 + 一键还原" },
+        { "dir": "dsh-file-drop", "purpose": "选中上传 + 拖入文件到对话，图片走内核官方附件管道" },
+        { "dir": "dsh-image-paste", "purpose": "粘贴图片自动落临时目录并把完整路径注入输入框" },
+        { "dir": "dsh-input-fold", "purpose": "超长用户提示词默认折叠为前几行，点击展开全文" },
+        { "dir": "dsh-input-history", "purpose": "终端式命令历史回溯：↑/↓ 翻阅本会话已发送消息" },
+        { "dir": "dsh-auto-compact", "purpose": "接近上下文上限时自动发送 /compact" },
+        { "dir": "dsh-change-review", "purpose": "AI 变更审核：让模型复查自己刚做的改动" },
+        { "dir": "dsh-offpeak", "purpose": "峰谷价格卫士：高峰时段发送前拦截提醒，可定时到闲时价执行" },
+        { "dir": "dsh-settings-nav-custom", "purpose": "设置页左侧导航显示/隐藏与排序" },
+        { "dir": "dsh-settings-groups", "purpose": "设置页低频选项折叠进「高级选项」组" },
+        { "dir": "dsh-conversation-tweaks", "purpose": "会话体验微调：隐藏长篇输出 + 右侧导航滑轨" },
+        { "dir": "dsh-quest-ui", "purpose": "Quest 模式界面（分组会话栏 + 卡片式输入区），默认关闭" },
+        { "dir": "dsh-subagent-lens", "purpose": "子代理活动快视：Task/subagent 委派调用的展开式活动视图" },
+        { "dir": "dsh-easyrewrite", "purpose": "消息撤回与再编辑（上游 Renzic-Stone/DSH-EasyRewrite）" },
+        { "dir": "dsh-workspace-anchor", "purpose": "向稳定系统提示注入 {{cwd}} 偏好块，让 agent 默认落在会话工作区" },
+        { "dir": "dsh-prompt-custom", "purpose": "在设置页自定义官方内核注入的提示词" }
+      ]
+    },
+    "plus": {
+      "title": "增强层",
+      "summary": "11 个体量/侵入性更高的插件：侧边栏工作台、基础能力面板、推理强度选择、识图、会话地图、临时会话、prompt 润色、zcode 会话迁移、社区插件市场；另含两个默认关闭项（超级模组注入器、桌面宠物），装上即挂载但处于 disabled，用户在设置页自行打开。",
+      "members": [
+        { "dir": "dsh-better-sidebar", "purpose": "VSCode 式右侧栏工作台（文件 / 编辑器 / 终端 / git / 浏览器），按会话隔离" },
+        { "dir": "dsh-basics-panel", "purpose": "设置页可视化管理 MCP 服务器 / 技能 / 规则" },
+        { "dir": "dsh-reasoning-effort", "purpose": "Codex 风格「模型 + 推理强度」选择器" },
+        { "dir": "dsh-vision", "purpose": "识图：为纯文本模型提供 view_image 工具，走任意 OpenAI 兼容 VLM 端点" },
+        { "dir": "dsh-synapse", "purpose": "会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布" },
+        { "dir": "dsh-side-session", "purpose": "临时会话：独立悬浮窗，自动导入主对话上下文，不污染主会话" },
+        { "dir": "dsh-super-injector", "purpose": "超级模组注入器：运行时注入本地插件包，不碰 patch / 不重启", "defaultDisabled": true },
+        { "dir": "dsh-prompt-optimizer", "purpose": "输入框 prompt 一键润色为结构化高质量提示" },
+        { "dir": "dsh-zcode-migrate", "purpose": "zcode CLI 历史会话 → dsh 原生会话日志迁移" },
+        { "dir": "dsh-community-market", "purpose": "可视化插件市场：开放目录源 + 搜索 + registry 校验安装" },
+        { "dir": "harness-pet", "purpose": "桌面小鲸鱼宠物", "defaultDisabled": true }
+      ]
+    },
+    "knowledge": {
+      "title": "知识库层",
+      "summary": "2 个知识类插件：Cardian 知识中心（RepoWiki / 知识卡片 / 记忆，落地到本地 Obsidian 仓库）与 Graph Memory（跨会话知识图谱 + PageRank / 社区检测 / 向量召回）。两者默认 disabled，装上后在设置页自行打开。",
+      "members": [
+        { "dir": "dsh-cardian", "purpose": "知识中心：RepoWiki / 知识卡片 / 记忆三区知识库", "defaultDisabled": true },
+        { "dir": "graph-memory", "purpose": "跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回", "defaultDisabled": true }
+      ],
+      "extraDoc": [
+        "### 装完还要两次点击：pnpm 11 的 ignored-builds 提示（knowledge 层专属）",
+        "",
+        "`graph-memory` 依赖 `@photostructure/sqlite`，它的 `install` 脚本是 `node-gyp-build`，",
+        "pnpm 11 默认不放行构建脚本，于是首次安装会停在：",
+        "",
+        "```",
+        "[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @photostructure/sqlite@1.2.1",
+        "Run \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
+        "```",
+        "",
+        "**这不是装失败，也不是要装 MSVC。** 实测（spike §0.2）1.2.1 的六个平台预编译都在包内",
+        "（`prebuilds/win32-x64/…glibc.node` 等），`node-gyp-build` 运行期按平台目录取二进制，",
+        "install 脚本跑不跑都不影响加载。要消掉提示并让它照常工作：",
+        "",
+        "1. 在官方客户端的 **设置 → 插件** 里，安装报错处点 **「Allow these scripts and retry」**",
+        "   （允许这些脚本并重试）——第一次点击；",
+        "2. 重试完成后回到 **设置 → 插件**，确认 `graph-memory` 与 `dsh-cardian` 都在列表里，",
+        "   把它们的开关打开一次——第二次点击。",
+        "",
+        "> 两个已知待办（不在本阶段，别顺手改）：",
+        "> · `graph-memory/package.json` 里该依赖仍写 `^1.0.0`，spike §0.2 的结论是**锁精确版本",
+        ">   （1.2.1）**——浮动的 1.x 可能挑中一个不带 win32 预编译的版本；",
+        "> · 发版 CI 应断言 `pendingBuilds` 里点名的就是这个包，这样上游换依赖时上面那段说明会红，",
+        ">   提醒同步改这里。"
+      ]
+    },
+    "pocket": {
+      "title": "手机同屏层",
+      "summary": "DSH Pocket：手机扫码实时同屏操控桌面端，局域网 + 公网（内置 cloudflared 穿透与二维码配对）。随包带 node_modules 与二进制下载逻辑，体积明显大于核心层，故单列一层。",
+      "members": [
+        { "dir": "dsh-pocket", "purpose": "手机扫码实时同屏操控桌面 web（WebSocket 透传 + cloudflared 隧道 + 二维码配对）" }
+      ]
+    },
+    "bridge": {
+      "title": "IM 网关层",
+      "summary": "OpenClaw Bridge：把微信公众号 / 飞书官方频道桥接进 DSH agent 会话（消息分片回写、通道适配器、去重限流）。QQ 由官方 @tencent-connect/dsh-qqbot 提供，不在本层范围。",
+      "members": [
+        { "dir": "dsh-openclaw-bridge", "purpose": "微信 / 飞书官方频道桥接入 DSH agent 会话" }
+      ]
+    },
+    "compaction": {
+      "title": "超长上下文层",
+      "summary": "billion-context-dsh（ACP）：由模型自己决定何时压缩、压缩什么的 CompactionEngine 后端。**装上即启用**——它的行没有 disabled，因为「装这一层」本身就是 opt-in；不想用就别装这层。",
+      "members": [
+        { "dir": "billion-context-dsh", "purpose": "Active Context Pruning：模型驱动的百万级上下文压缩后端" }
+      ]
+    }
+  },
+  "untiered": [
+    {
+      "dir": "dsh-terminal-tab",
+      "reason": "与上游 @deepseek-ai/dsh-client-ui-sidebar-terminal（loader id ui-sidebar-terminal）功能重叠，去重结论待验证。已保证可独立自挂载（自带 cordis.patch.yml + dsh.bundle.patch），但不进任何元包；验证后再决定入 plus 层或摘除。"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# DSH Pack 的 workspace 定义。
+#
+# 这里刻意和「用户 profile 的 pnpm-workspace.yaml」保持同一套语义
+# （那边实测是 packages:[.] / nodeLinker:hoisted / autoInstallPeers:false），
+# 这样本地装出来的解析行为、以及 pnpm 11 拦构建脚本的行为，才和用户机上命中的一致。
+# 用 npm 会让这一整类问题从 CI 里漏过去。
+packages:
+  - 'packages/*'
+
+nodeLinker: hoisted
+autoInstallPeers: false

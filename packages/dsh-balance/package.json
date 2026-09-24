@@ -1,0 +1,36 @@
+{
+  "name": "@dsh-pack/dsh-balance",
+  "version": "0.1.1",
+  "description": "DeepSeek 账户余额 + 本轮会话费用估算（DSH Desktop 配套客户端插件，注册到对话统计栏 dock）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "files": [
+    "LICENSE",
+    "cordis.patch.yml",
+    "lib"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@dsh-pack/dsh-conversation-tweaks",
+  "version": "0.1.0",
+  "description": "DSH Desktop 配套会话体验：设置-通用里隐藏长篇对话输出 + 会话右侧导航滑轨",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.0"
+  },
+  "files": [
+    "LICENSE",
+    "cordis.patch.yml",
+    "lib"
+  ]
+}

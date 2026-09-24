@@ -1,0 +1,63 @@
+{
+  "name": "@dsh-pack/dsh-openclaw-bridge",
+  "version": "0.8.0",
+  "description": "DSH plugin bridging WeChat / Feishu official channels into DSH agent sessions, with an IM bridge settings section in the DSH settings page (QQ provided by the official @tencent-connect/dsh-qqbot)",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/schemastery": "*",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.6 <2",
+    "react": ">=18"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-primitives/client"
+      ],
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "openclaw",
+    "clawbot",
+    "wechat",
+    "bridge",
+    "agent",
+    "settings"
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "cordis.patch.yml",
+    "lib"
+  ]
+}

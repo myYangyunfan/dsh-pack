@@ -1,0 +1,41 @@
+# ⚠️ 本文件由 tools/build-meta-patches.mjs 生成，请勿手改。
+# 改动的正确姿势：改 tools/tiers.json（层与成员）或改成员包自己的
+# cordis.patch.yml（行内容），然后跑 node tools/build-meta-patches.mjs 重新生成。
+#
+# 层：知识库层（meta-knowledge / 发布名 @dsh-pack/knowledge），成员 2 个。
+#
+# 为什么元包要自带这些行：docs/spike-official-client.md §0.3 实测——元包光靠
+# dependencies 是惰性的（传递依赖不会成为 bundle，row 也完全不组合，且用户无报错）。
+# 所以行的插入方必须是元包这一层；成员包同时保有自己的 cordis.patch.yml，
+# 这样单独 @dsh-pack/knowledge 之外的任一成员也装得起来。
+#
+# 定序 / 去重：按 tools/tiers.json 的成员顺序，loader id 先到先得。
+# ⚠ patch 按 id 整行替换（无字段级 merge），所以每条行的 config 都是完整配置。
+- insert:
+    # ── dsh-cardian ── 知识中心：RepoWiki / 知识卡片 / 记忆三区知识库
+    - id: cardian
+      name: '@dsh-pack/dsh-cardian'
+      disabled: true
+      config:
+        # Obsidian 仓库路径：知识卡片 / 记忆 / RepoWiki 都写入此目录。
+        # 可改为绝对路径，例如 !!js path.join(process.env.HOME, 'obsidian-vault')
+        vaultPath: ./cardian-vault
+        autoInit: false
+    # ── graph-memory ── 跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回
+    - id: graph-memory
+      name: '@dsh-pack/graph-memory/dsh'
+      disabled: true
+      config:
+        dbPath: !!js dshHomePath('graph-memory/graph-memory.db')
+        extractionEnabled: true
+        recallEnabled: true
+        recallMaxNodes: 6
+        recallMaxDepth: 2
+        maintenanceInterval: 6
+        # Secrets stay outside the bundle and repository. Set these variables
+        # in the environment that starts DSH to enable semantic vector recall.
+        embedding:
+          apiKeyEnv: !!js "process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ? 'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined"
+          baseURL: !!js process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL
+          model: !!js process.env.GRAPH_MEMORY_EMBEDDING_MODEL
+          dimensions: !!js "process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS ? Number(process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS) : undefined"

@@ -1,0 +1,58 @@
+{
+  "name": "@dsh-pack/dsh-vision",
+  "version": "0.3.0",
+  "description": "DSH Desktop 内置识图插件：为纯文本 DeepSeek 提供 view_image 工具，通过任意 OpenAI 兼容 VLM 端点回答图片问题（默认智谱免费 glm-4.6v-flash，可换通义 qwen3-vl / Ollama 本地 / DeepSeek 官方识图 API）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "dsh.plugin.json"
+  ],
+  "license": "BSD-3-Clause",
+  "engines": {
+    "dsh": ">=0.0.1"
+  },
+  "dshx": {
+    "contributes": {
+      "tools": [
+        "view_image"
+      ],
+      "skills": []
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-primitives/client"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6 <2",
+    "react": ">=18",
+    "@deepseek-ai/schemastery": "^3.18.0"
+  }
+}

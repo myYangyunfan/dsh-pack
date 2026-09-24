@@ -1,0 +1,5 @@
+# dsh-openclaw-bridge profile composition patch（内置化：由 install.ps1 第 3 步的
+# insert 块固化而来，使本插件与其余内置 bundle 走同一套自动装配机制）。
+- insert:
+    - id: openclaw-bridge
+      name: '@dsh-pack/dsh-openclaw-bridge'

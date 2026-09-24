@@ -1,0 +1,28 @@
+{
+  "//": "成员版本先写 >=0.1.0：这些包不在同一个 pnpm workspace 里，workspace 协议（workspace:*）不能出现在发布产物中；真正的精确版本由发布工具（阶段 3 的 release tool）在打包前就地改写。",
+  "name": "@dsh-pack/knowledge",
+  "version": "0.1.0",
+  "description": "知识库层（DSH 插件包 · 元包）：2 个知识类插件：Cardian 知识中心（RepoWiki / 知识卡片 / 记忆，落地到本地 Obsidian 仓库）与 Graph Memory（跨会话知识图谱 + PageRank / 社区检测 / 向量召回）。两者默认 disabled，装上后在设置页自行打开。",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dsh-pack/dsh-cardian": ">=0.1.0",
+    "@dsh-pack/graph-memory": ">=0.1.0"
+  }
+}

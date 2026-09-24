@@ -1,42 +1,112 @@
-# PR 自动检查：语法预检 + 全量单测
-# CI 红时请勿请求 review —— 先在本机复现并修复（命令见 CONTRIBUTING.md）。
+name: CI
 
-name: ci
+# 三道门禁：静态审计（含 P0 的 publish-readiness）→ 单测 → 真装真组合的集成校验。
+# 集成校验必须有 windows-latest：原生预编译和 win32 的 sharp 可选依赖只在那里被真正走到。
 
 on:
   pull_request:
   push:
     branches: [main]
 
-# PR 上新 push 取消旧 run（省额度）；main 上的 run 不互相取消（保留完整记录）
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: check-syntax + unit tests
-    runs-on: windows-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: dsh-desktop
+  static:
+    name: 静态审计（6 项门禁）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # --ignore-scripts：pnpm 11 默认拦依赖的 install 脚本，静态审计与单测都不需要
+      # 原生构建（sharp / node-gyp-build 那类）。需要真装原生包的是 J3，它单独跑。
+      # 不加这个会让 pnpm install 直接以 ERR_PNPM_IGNORED_BUILDS 失败。
+      - run: pnpm install --frozen-lockfile=false --ignore-scripts
+      - name: 生成/刷新官方内核快照
+        run: |
+          node -e "const v=require('./tools/audit/dsh-runtime.json').runtimeVersion;console.log('kernel',v)" \
+            && npm i --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/kernel" \
+               "@deepseek-ai/dsh@$(node -p "require('./tools/audit/dsh-runtime.json').runtimeVersion")"
+          node tools/audit/extract-kernel-snapshots.mjs "$RUNNER_TEMP/kernel/node_modules"
+      - name: node tools/audit/index.js
+        run: node tools/audit/index.js
+
+  unit:
+    name: 单测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # --ignore-scripts：pnpm 11 默认拦依赖的 install 脚本，静态审计与单测都不需要
+      # 原生构建（sharp / node-gyp-build 那类）。需要真装原生包的是 J3，它单独跑。
+      # 不加这个会让 pnpm install 直接以 ERR_PNPM_IGNORED_BUILDS 失败。
+      - run: pnpm install --frozen-lockfile=false --ignore-scripts
+      # 集成/单测都强制把 DSH_HOME 指到临时目录；这里显式清空，防止继承到真实路径
+      - name: node --test
+        run: node --test "packages/*/test/*.test.js" "packages/*/test/*.test.mjs"
+        env:
+          DSH_HOME: ''
+
+  itest:
+    name: 集成 J1+J2（真装 + 组合 + tarball 启动）
+    needs: [static]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: dsh-desktop/package-lock.json
-      - name: 安装依赖
-        run: npm ci
-      - name: kernel-pin 一致性校验（fail-closed，离线 tarball 与 pin 不得混版）
-        run: node scripts/compat/validate-pin.js
-      - name: 补丁干预面漂移校验（npm ci 后 dev 树应与快照收敛态一致）
-        run: node scripts/compat/patch-surface.js verify node_modules/@deepseek-ai ..
-      - name: 语法预检（构建门禁同款，prepack/predist 自动执行）
-        run: node scripts/check-syntax.js
-      - name: 全量单测（unit-* / desktop-*，node --test 自动发现）
-        run: npm test
-      - name: 余额链路验证（逻辑级 dock）
-        run: node scripts/test/verify-balance-dock.cjs
+          node-version: 24
+      - name: 缓存官方内核
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kernel
+          key: kernel-${{ matrix.os }}-${{ hashFiles('tools/audit/dsh-runtime.json') }}
+      - name: 装一份干净内核（从 npm，不用 vendored tarball）
+        run: |
+          npm i --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/kernel" \
+            "@deepseek-ai/dsh@$(node -p "require('./tools/audit/dsh-runtime.json').runtimeVersion")"
+        shell: bash
+      - name: J1 组合校验
+        run: node tools/itest/boot-desktop-profile.mjs --job=j1
+        env:
+          DSH_KERNEL_BIN: ${{ runner.temp }}/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js
+      - name: J2 tarball 安装 + 启动冒烟
+        run: node tools/itest/boot-desktop-profile.mjs --job=j2
+        env:
+          DSH_KERNEL_BIN: ${{ runner.temp }}/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js
+
+  itest-builds:
+    name: 集成 J3（pnpm 构建脚本放行流程）
+    needs: [static]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 装一份干净内核
+        run: |
+          npm i --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/kernel" \
+            "@deepseek-ai/dsh@$(node -p "require('./tools/audit/dsh-runtime.json').runtimeVersion")"
+        shell: bash
+      - name: J3 断言 pendingBuilds 文案与 allowBuilds 恢复
+        run: node tools/itest/boot-desktop-profile.mjs --job=j3
+        env:
+          DSH_KERNEL_BIN: ${{ runner.temp }}/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js

@@ -1,0 +1,36 @@
+{
+  "name": "@dsh-pack/dsh-client-file-changes",
+  "version": "0.1.0",
+  "description": "「文件」视图：会话文件更改追踪 + 一键还原（数据来自 dsh-file-changes 投影，还原由 DSH Desktop 壳执行）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "files": [
+    "LICENSE",
+    "cordis.patch.yml",
+    "lib"
+  ]
+}

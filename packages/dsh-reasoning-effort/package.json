@@ -1,0 +1,65 @@
+{
+  "name": "@dsh-pack/dsh-reasoning-effort",
+  "version": "0.7.0",
+  "description": "Codex-style DeepSeek Harness model and reasoning selector with model-advertised effort levels, DSH-native themes, left-clipped radiation effects, and copy-ready reasoning-effort declaration guidance for custom-provider models.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "reasoning-effort",
+    "thinking",
+    "model-selector",
+    "slider",
+    "ui",
+    "cordis"
+  ],
+  "author": "HanaAyane",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanaAyane/dsh-reasoning-effort.git"
+  },
+  "homepage": "https://github.com/HanaAyane/dsh-reasoning-effort#readme",
+  "bugs": {
+    "url": "https://github.com/HanaAyane/dsh-reasoning-effort/issues"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "external": [],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "files": [
+    "LICENSE",
+    "assets",
+    "cordis.patch.yml",
+    "lib"
+  ]
+}

@@ -1,0 +1,4 @@
+- insert:
+    - id: harness-pet
+      name: '@dsh-pack/harness-pet'
+      disabled: true

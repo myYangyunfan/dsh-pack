@@ -1,0 +1,80 @@
+name: Kernel drift
+
+# 每夜对 @deepseek-ai/dsh@latest 重新生成官方内核的「包名 + loader id」两份快照。
+# 为什么要它：
+#   · loader id 撞车 = 补丁按 id 整行替换 → 我们的行会静默顶替内核那一条
+#     （实测已经抓到过一次：`plugin-manager`）。下一个内核版本可能再引入一个。
+#   · 新增/删除的内核包名会让 dsh.client.inject 指向不存在的包，
+#     而这种问题**不响亮失败**，只表现为某个插件的页内半边静默消失。
+#   · 官方客户端有强制更新策略，内核版本会在我们不参与的情况下前进。
+# 我们把 peer 区间放得很宽（>=0.1.0-rc.6 <2）来避免用户被「may cause crashes or data loss」拦住，
+# 代价是必须有人盯着漂移——这个 workflow 就是那只眼睛。有 diff 就开 issue。
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    name: 比对内核快照
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 取最新内核
+        run: |
+          LATEST=$(npm view @deepseek-ai/dsh version)
+          echo "LATEST=$LATEST" >> "$GITHUB_ENV"
+          npm i --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/kernel-new" "@deepseek-ai/dsh@$LATEST"
+      - name: 生成最新快照到临时副本（不覆盖签入版本）
+        run: |
+          cp -r tools/audit "$RUNNER_TEMP/audit-new"
+          node "$RUNNER_TEMP/audit-new/extract-kernel-snapshots.mjs" "$RUNNER_TEMP/kernel-new/node_modules" >/dev/null
+      - name: 比对并汇报
+        id: diff
+        run: |
+          {
+            echo '### 内核漂移 '  "$LATEST"
+            echo
+            echo "签入版本: $(node -p "require('./tools/audit/kernel-packages.json').kernelVersion")"
+            echo "最新包名数: $(node -p "require('$RUNNER_TEMP/audit-new/kernel-packages.json').packages.length")  (签入 $(node -p "require('./tools/audit/kernel-packages.json').packages.length"))"
+            echo "最新 loader id 数: $(node -p "require('$RUNNER_TEMP/audit-new/kernel-entry-ids.json').ids.length")  (签入 $(node -p "require('./tools/audit/kernel-entry-ids.json').ids.length"))"
+            echo
+            echo '#### loader id 新增（可能与我们撞名）'
+            comm -13 \
+              <(node -p "require('./tools/audit/kernel-entry-ids.json').ids.join('\n')" | sort) \
+              <(node -p "require('$RUNNER_TEMP/audit-new/kernel-entry-ids.json').ids.join('\n')" | sort) | sed 's/^/- `/'
+            echo
+            echo '#### loader id 消失'
+            comm -23 \
+              <(node -p "require('./tools/audit/kernel-entry-ids.json').ids.join('\n')" | sort) \
+              <(node -p "require('$RUNNER_TEMP/audit-new/kernel-entry-ids.json').ids.join('\n')" | sort) | sed 's/^/- `/'
+          } > drift.md
+          cat drift.md
+          ADD=$(comm -13 <(node -p "require('./tools/audit/kernel-entry-ids.json').ids.join('\n')" | sort) \
+                         <(node -p "require('$RUNNER_TEMP/audit-new/kernel-entry-ids.json').ids.join('\n')" | sort) | wc -l)
+          VER=$(node -p "require('./tools/audit/kernel-packages.json').kernelVersion")
+          if [ "$LATEST" != "$VER" ] || [ "$ADD" -gt 0 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 有漂移就开 issue
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('drift.md', 'utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `内核漂移：@deepseek-ai/dsh 已到 ${process.env.LATEST}`,
+              labels: ['kernel-drift'],
+              body: body + '\n\n> 请复核 `tools/audit/kernel-*.json` 是否需要刷新，以及我们自己的 loader id / dsh.client.inject 是否受影响。',
+            });

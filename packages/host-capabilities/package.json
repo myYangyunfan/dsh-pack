@@ -1,0 +1,36 @@
+{
+  "name": "@dsh-pack/host-capabilities",
+  "version": "0.1.0",
+  "description": "宿主能力探针：探测当前运行在哪个 Harness 宿主里、它到底给了哪些原生能力。纯构建期内联库，不是 cordis bundle。",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./src/browser.js",
+  "exports": {
+    ".": "./src/browser.js",
+    "./browser": "./src/browser.js",
+    "./node": "./src/node.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/browser.js",
+    "src/node.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/myYangyunfan/dsh_desktop.git",
+    "directory": "packages/host-capabilities"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-pack",
+    "capabilities"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
