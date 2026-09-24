@@ -1,5 +1,4 @@
 {
-  "//": "成员版本先写 >=0.1.0：这些包不在同一个 pnpm workspace 里，workspace 协议（workspace:*）不能出现在发布产物中；真正的精确版本由发布工具（阶段 3 的 release tool）在打包前就地改写。",
   "name": "@dsh-pack/core",
   "version": "0.1.0",
   "description": "核心体验层（DSH 插件包 · 元包）：18 个轻量纯客户端/宿主插件：余额与费用、文件变更追踪与还原、拖入/粘贴、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义。装完即用，无额外二进制、无网络副作用。",
@@ -7,7 +6,9 @@
   "main": "lib/index.js",
   "license": "MIT",
   "exports": {
-    ".": { "default": "./lib/index.js" },
+    ".": {
+      "default": "./lib/index.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -22,23 +23,23 @@
     }
   },
   "dependencies": {
-    "@dsh-pack/dsh-balance": ">=0.1.0",
-    "@dsh-pack/dsh-file-changes": ">=0.1.0",
-    "@dsh-pack/dsh-client-file-changes": ">=0.1.0",
-    "@dsh-pack/dsh-file-drop": ">=0.1.0",
-    "@dsh-pack/dsh-image-paste": ">=0.1.0",
-    "@dsh-pack/dsh-input-fold": ">=0.1.0",
-    "@dsh-pack/dsh-input-history": ">=0.1.0",
-    "@dsh-pack/dsh-auto-compact": ">=0.1.0",
-    "@dsh-pack/dsh-change-review": ">=0.1.0",
-    "@dsh-pack/dsh-offpeak": ">=0.1.0",
-    "@dsh-pack/dsh-settings-nav-custom": ">=0.1.0",
-    "@dsh-pack/dsh-settings-groups": ">=0.1.0",
-    "@dsh-pack/dsh-conversation-tweaks": ">=0.1.0",
-    "@dsh-pack/dsh-quest-ui": ">=0.1.0",
-    "@dsh-pack/dsh-subagent-lens": ">=0.1.0",
-    "@dsh-pack/dsh-easyrewrite": ">=0.1.0",
-    "@dsh-pack/dsh-workspace-anchor": ">=0.1.0",
-    "@dsh-pack/dsh-prompt-custom": ">=0.1.0"
+    "@dsh-pack/dsh-balance": "^0.1.1",
+    "@dsh-pack/dsh-file-changes": "^0.1.0",
+    "@dsh-pack/dsh-client-file-changes": "^0.1.0",
+    "@dsh-pack/dsh-file-drop": "^0.3.0",
+    "@dsh-pack/dsh-image-paste": "^0.1.0",
+    "@dsh-pack/dsh-input-fold": "^0.1.0",
+    "@dsh-pack/dsh-input-history": "^0.1.0",
+    "@dsh-pack/dsh-auto-compact": "^0.1.0",
+    "@dsh-pack/dsh-change-review": "^0.1.0",
+    "@dsh-pack/dsh-offpeak": "^1.0.0",
+    "@dsh-pack/dsh-settings-nav-custom": "^0.1.0",
+    "@dsh-pack/dsh-settings-groups": "^0.1.0",
+    "@dsh-pack/dsh-conversation-tweaks": "^0.1.0",
+    "@dsh-pack/dsh-quest-ui": "^0.6.0",
+    "@dsh-pack/dsh-subagent-lens": "^0.1.0",
+    "@dsh-pack/dsh-easyrewrite": "^2.5.2",
+    "@dsh-pack/dsh-workspace-anchor": "^0.1.0",
+    "@dsh-pack/dsh-prompt-custom": "^0.1.1"
   }
 }

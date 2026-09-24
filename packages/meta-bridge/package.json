@@ -1,5 +1,4 @@
 {
-  "//": "成员版本先写 >=0.1.0：这些包不在同一个 pnpm workspace 里，workspace 协议（workspace:*）不能出现在发布产物中；真正的精确版本由发布工具（阶段 3 的 release tool）在打包前就地改写。",
   "name": "@dsh-pack/bridge",
   "version": "0.1.0",
   "description": "IM 网关层（DSH 插件包 · 元包）：OpenClaw Bridge：把微信公众号 / 飞书官方频道桥接进 DSH agent 会话（消息分片回写、通道适配器、去重限流）。QQ 由官方 @tencent-connect/dsh-qqbot 提供，不在本层范围。",
@@ -7,7 +6,9 @@
   "main": "lib/index.js",
   "license": "MIT",
   "exports": {
-    ".": { "default": "./lib/index.js" },
+    ".": {
+      "default": "./lib/index.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -22,6 +23,6 @@
     }
   },
   "dependencies": {
-    "@dsh-pack/dsh-openclaw-bridge": ">=0.1.0"
+    "@dsh-pack/dsh-openclaw-bridge": "^0.8.0"
   }
 }

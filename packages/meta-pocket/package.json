@@ -1,5 +1,4 @@
 {
-  "//": "成员版本先写 >=0.1.0：这些包不在同一个 pnpm workspace 里，workspace 协议（workspace:*）不能出现在发布产物中；真正的精确版本由发布工具（阶段 3 的 release tool）在打包前就地改写。",
   "name": "@dsh-pack/pocket",
   "version": "0.1.0",
   "description": "手机同屏层（DSH 插件包 · 元包）：DSH Pocket：手机扫码实时同屏操控桌面端，局域网 + 公网（内置 cloudflared 穿透与二维码配对）。随包带 node_modules 与二进制下载逻辑，体积明显大于核心层，故单列一层。",
@@ -7,7 +6,9 @@
   "main": "lib/index.js",
   "license": "MIT",
   "exports": {
-    ".": { "default": "./lib/index.js" },
+    ".": {
+      "default": "./lib/index.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -22,6 +23,6 @@
     }
   },
   "dependencies": {
-    "@dsh-pack/dsh-pocket": ">=0.1.0"
+    "@dsh-pack/dsh-pocket": "^2.10.6"
   }
 }

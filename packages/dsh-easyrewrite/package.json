@@ -63,9 +63,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node tests/smoke-host.mjs && node tests/test-log-memory.mjs",
-    "build": "node build.mjs",
-    "prepare": "node build.mjs",
-    "prepack": "node build.mjs"
+    "build": "node build.mjs"
   },
   "repository": {
     "type": "git",

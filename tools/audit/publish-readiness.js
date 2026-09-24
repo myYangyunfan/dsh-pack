@@ -113,6 +113,28 @@ function run(ctx = {}) {
     if (m.private === true) {
       findings.push(finding(CHECK, 'error', 'private: true —— npm publish 直接拒绝，这个包发不出去', label));
     }
+
+    // ---- 发布期钩子 ----
+    // npm publish **一定执行 prepare**（以及 prepack/prepublishOnly）。这些包带的是
+    // 完整构建（tsdown / npm run build / pnpm run bundle），后果有两层：
+    //   ① 没有构建工具链就直接发布失败（本地 registry 实测复现过 graph-memory、harness-pet）；
+    //   ② 就算跑通，它用 src/ 重新生成 lib/，发出去的就不再是我们测过、且 loader 实际加载的那份产物。
+    // 本仓库的约定是「预构建产物随包提交」，构建只在开发者机器上按需手动跑。
+    const scripts = (m.scripts && typeof m.scripts === 'object') ? m.scripts : {};
+    const hooks = ['prepare', 'prepack', 'postpack', 'prepublish', 'prepublishOnly'].filter((h) => scripts[h]);
+    if (hooks.length) {
+      findings.push(
+        finding(
+          CHECK,
+          'error',
+          `挂了发布期钩子 ${hooks.map((h) => `${h}="${scripts[h]}"`).join(', ')}：` +
+            `npm publish 会执行它 —— 要么当场失败，要么用 src/ 重新生成 lib/，` +
+            `发出未经测试的产物。请删掉钩子，构建保留为手动 script`,
+          label
+        )
+      );
+    }
+
     if (typeof m.license !== 'string' || m.license.trim() === '') {
       findings.push(finding(CHECK, 'error', '缺 license 字段：发布到 npm 的包必须声明许可证', label));
     }

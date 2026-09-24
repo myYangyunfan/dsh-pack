@@ -50,9 +50,15 @@ jobs:
         id: ver
         uses: changesets/action@v1
         with:
-          install: pnpm install --frozen-lockfile=false
+          install: pnpm install --frozen-lockfile=false --ignore-scripts
           version: pnpm changeset version
-          publish: pnpm -r publish --access public --tag latest --no-git-checks
+          # 用 changeset publish 而不是 pnpm -r publish：
+          # 它会读 .changeset/pre.json 决定 dist-tag，能正确处理 prerelease 包。
+          # 直接 pnpm -r publish 会在 @dsh-pack/graph-memory@1.6.0-beta.1 上整个失败
+          # （npm: "You must specify a tag using --tag when publishing a prerelease version."），
+          # 而 publish 阶段带 --ignore-scripts 是因为 6 个包挂了 prepare/prepack
+          # （发布期构建会重新生成 lib/，发出去的就不是测过的那份产物）。
+          publish: pnpm changeset publish --tag latest
           commit: 'chore(release): 版本变更集'
           title: 'chore(release): 版本变更集'
         env:

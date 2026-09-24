@@ -44,9 +44,7 @@
     "test": "node --test \"test/*.test.mjs\"",
     "test:watch": "node --test --watch \"test/*.test.mjs\"",
     "build": "tsdown",
-    "build:client": "tsdown",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run build"
+    "build:client": "tsdown"
   },
   "license": "MIT",
   "author": "cardian contributors",

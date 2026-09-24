@@ -1,5 +1,4 @@
 {
-  "//": "成员版本先写 >=0.1.0：这些包不在同一个 pnpm workspace 里，workspace 协议（workspace:*）不能出现在发布产物中；真正的精确版本由发布工具（阶段 3 的 release tool）在打包前就地改写。",
   "name": "@dsh-pack/plus",
   "version": "0.1.0",
   "description": "增强层（DSH 插件包 · 元包）：11 个体量/侵入性更高的插件：侧边栏工作台、基础能力面板、推理强度选择、识图、会话地图、临时会话、prompt 润色、zcode 会话迁移、社区插件市场；另含两个默认关闭项（超级模组注入器、桌面宠物），装上即挂载但处于 disabled，用户在设置页自行打开。",
@@ -7,7 +6,9 @@
   "main": "lib/index.js",
   "license": "MIT",
   "exports": {
-    ".": { "default": "./lib/index.js" },
+    ".": {
+      "default": "./lib/index.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -22,16 +23,16 @@
     }
   },
   "dependencies": {
-    "@dsh-pack/dsh-better-sidebar": ">=0.1.0",
-    "@dsh-pack/dsh-basics-panel": ">=0.1.0",
-    "@dsh-pack/dsh-reasoning-effort": ">=0.1.0",
-    "@dsh-pack/dsh-vision": ">=0.1.0",
-    "@dsh-pack/dsh-synapse": ">=0.1.0",
-    "@dsh-pack/dsh-side-session": ">=0.1.0",
-    "@dsh-pack/dsh-super-injector": ">=0.1.0",
-    "@dsh-pack/dsh-prompt-optimizer": ">=0.1.0",
-    "@dsh-pack/dsh-zcode-migrate": ">=0.1.0",
-    "@dsh-pack/dsh-community-market": ">=0.1.0",
-    "@dsh-pack/harness-pet": ">=0.1.0"
+    "@dsh-pack/dsh-better-sidebar": "^0.15.3",
+    "@dsh-pack/dsh-basics-panel": "^0.1.0",
+    "@dsh-pack/dsh-reasoning-effort": "^0.7.0",
+    "@dsh-pack/dsh-vision": "^0.3.0",
+    "@dsh-pack/dsh-synapse": "^0.3.0",
+    "@dsh-pack/dsh-side-session": "^0.3.1",
+    "@dsh-pack/dsh-super-injector": "^0.3.1",
+    "@dsh-pack/dsh-prompt-optimizer": "^2.0.3",
+    "@dsh-pack/dsh-zcode-migrate": "^0.1.1",
+    "@dsh-pack/dsh-community-market": "^0.1.1",
+    "@dsh-pack/harness-pet": "^0.2.0"
   }
 }

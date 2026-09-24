@@ -45,7 +45,6 @@
   },
   "scripts": {
     "bundle": "tsdown",
-    "prepare": "pnpm run bundle",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

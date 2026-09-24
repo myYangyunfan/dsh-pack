@@ -228,6 +228,56 @@ for (const [tier, spec] of Object.entries(tiers.tiers)) {
     writeFileSync(target, text);
     written += 1;
   }
+  // ── 元包的成员依赖同样由这里生成，不留手写值 ─────────────────────
+  // 之前 6 个元包手写的是 ">=0.1.0"，有两个真实问题：
+  //   · semver.satisfies('1.0.0', '>=0.1.0') === true ⇒ 成员将来发 1.x 会被
+  //     元包无条件拉进来，跨 major 没有任何保护；
+  //   · 它也不解决 prerelease：graph-memory 是 1.6.0-beta.1，
+  //     写 ^1.6.0 匹配不到预发布版（semver 默认排除 prerelease），
+  //     knowledge 层装完会「有 row、包却拉不到」——正是我们费力在 better-sidebar
+  //     那边避免过的静默失效形态。
+  // 所以按成员**实际版本**生成 caret：prerelease 自动带上 prerelease 段。
+  const wantedDeps = {};
+  for (const member of spec.members) {
+    const mpj = join(PLUGINS, member.dir, 'package.json');
+    if (!existsSync(mpj)) continue;
+    let mv;
+    try {
+      mv = JSON.parse(readFileSync(mpj, 'utf8')).version;
+    } catch {
+      fail(`${member.dir}: package.json 解析失败，无法为 ${metaDir} 生成依赖区间`);
+      continue;
+    }
+    if (!mv) {
+      fail(`${member.dir}: 没有 version 字段`);
+      continue;
+    }
+    wantedDeps[`@dsh-pack/${member.dir}`] = `^${mv}`;
+  }
+  {
+    const metaPj = join(metaRoot, 'package.json');
+    const metaRaw = readFileSync(metaPj, 'utf8');
+    const metaManifest = JSON.parse(metaRaw);
+    const cur = metaManifest.dependencies || {};
+    const diffs = [];
+    for (const [name, range] of Object.entries(wantedDeps)) {
+      if (cur[name] !== range) diffs.push(`${name}: ${cur[name] || '(缺)'} → ${range}`);
+    }
+    for (const name of Object.keys(cur)) {
+      if (!(name in wantedDeps)) diffs.push(`${name}: ${cur[name]} → (移除，不在 tiers.json 里)`);
+    }
+    if (diffs.length) {
+      if (CHECK) {
+        fail(`${metaDir}: dependencies 与 tiers.json 不同源（跑生成器）：\n        ${diffs.join('\n        ')}`);
+      } else {
+        metaManifest.dependencies = wantedDeps;
+        delete metaManifest['//']; // 手写的「版本由发布工具改写」说明已不成立，别留误导注释
+        writeFileSync(metaPj, JSON.stringify(metaManifest, null, 2) + '\n');
+        console.log(`  ${metaDir}: 同步 dependencies（${diffs.length} 处）`);
+      }
+    }
+  }
+
   tierReport.push({ tier, metaDir, rows: blocks.length });
 }
 
