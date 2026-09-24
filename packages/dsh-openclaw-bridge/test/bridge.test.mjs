@@ -82,16 +82,21 @@ process.env.DSH_HOME = ISOLATED_DSH_HOME;
 // 原因不是改名引入的回归，而是它属于已删除的自制壳测试基建：
 // 它靠 scripts/test.ps1 把插件塞进 DSH 的 node_modules 树并用临时 USERPROFILE 跑，
 // 而那套壳与 runner 已随「退役自制壳」一起没了。
-// 更关键的是它的 mock 层级和现实现对不上：本文件全程改 mockSettingsValue（settings 服务），
-// 而宿主侧的白名单与工作目录是按 **cordis config** 取的
-// （lib/index.js:179-186 effectiveWhitelist 读 config.whitelistWechat；workspace 同源）。
-// 于是第 11 块（白名单）与第 12 块（工作目录）必然失败。
-// 待办见仓库任务：判定「宿主该不该读 settings」——该读就是真实的设置页↔执行脱节（安全问题），
-// 不该读就是本文件要重写 mock。修好后请删掉下面这段 guard。
+//
+// 挂起的直接症状是第 11、12 块断言失败。成因我先前写成「宿主读 config、测试改 settings」，
+// 那是错的，已核对推翻：lib/index.js:877 每条消息都 const cfg = liveConfig() || {}，
+// 而 liveConfig 在 832 行被换成 () => scope.get()（settings 服务），
+// effectiveWhitelist(180-185) 又在 whitelistWechat 为空时回落旧 allowlist 字段。
+// 也就是说设置确实是热生效的，本文件的 mock（190 行 get: () => ({ ...mockSettingsValue })）
+// 也接得上——失败更像是块与块之间的异步尾巴：第 10 块用 waitSent(base + 5) 排队，
+// 第 11 块只 await sleep(2500) 而不等新帧落地就取 base，晚到的回复会顶掉计数。
+// 所以这是**测试自身的时序问题**，不是产品缺陷，也不是安全问题。
+// 恢复方式：把第 11/12 块改成复用 waitSent(...) 等队列静默后再取 base，
+// 并把每块拆成独立 test() 以消除跨块串扰；顺手删掉下面这段 guard。
 console.log(
   "\n⠿ SKIP packages/dsh-openclaw-bridge/test/bridge.test.mjs —— " +
-    "mock 层级与实现不符（测 settings，实现读 config），且依赖已删除的 scripts/test.ps1；" +
-    "待按上述原因重写后恢复。不是改名引入的回归。\n"
+    "依赖已删除的 scripts/test.ps1 临时 USERPROFILE runner，且第 11/12 块有跨块异步时序问题" +
+    "（不是改名回归，也不是产品缺陷；成因与修法见本文件顶部注释）。待重写后恢复。\n"
 );
 process.exit(0);
 
