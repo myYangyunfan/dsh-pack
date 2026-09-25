@@ -4745,7 +4745,6 @@ var MarketInstallService = class {
 };
 
 // src/host/routes.ts
-var MARKET_SETTINGS_NAMESPACE = "dsh-community-market";
 var SOURCE_SCHEMA = z.object({
   sourceRecordId: z.string().required(),
   registrationKind: z.union(["user-added", "built-in"]).required(),
@@ -4757,8 +4756,21 @@ var SOURCE_SCHEMA = z.object({
   enabled: z.boolean().required(),
   order: z.number().required()
 });
+/**
+ * 插件配置（原 `settings.register` 的替代）。
+ *
+ * 内核 0.1.7-rc.1 的 `SettingsForms` 只有 describe/update/configure/schema/
+ * prepareDocument，**没有 `register`** —— 官方包一律导出 `Config` schema，由 cordis 的
+ * `resolveConfig()` 校验 profile 行里的 `config:`，结果就是 `apply(ctx, config)` 的第二参。
+ * 原先 `ctx.settings.register(ns, schema, { applies: "live" })` 在 apply 里抛
+ * `TypeError: ctx.settings.register is not a function` ⇒ 整条 not activate。
+ *
+ * 三个字段都必须 `.volatile()`：`describe()` 只收录「有 volatile 字段」的条目
+ * （`volatileForm(schema)` 为空就 `return []`），而写回要走
+ * `settings.update(ns, patch, revision)`，它又会拒绝非 volatile 路径。
+ */
 var SETTINGS_SCHEMA = z.object({
-  sources: z.array(SOURCE_SCHEMA).default([]),
+  sources: z.array(SOURCE_SCHEMA).volatile().default([]),
   installReceipts: z.array(z.object({
     receiptId: z.string().required(),
     profileName: z.string().required(),
@@ -4771,7 +4783,7 @@ var SETTINGS_SCHEMA = z.object({
     itemId: z.string().required(),
     displayName: z.string().required(),
     installedAt: z.string().required()
-  })).default([]),
+  })).volatile().default([]),
   catalogCache: z.object({
     version: z.number().step(1),
     sourceRecordId: z.string(),
@@ -4782,8 +4794,10 @@ var SETTINGS_SCHEMA = z.object({
     scannedAt: z.string(),
     expiresAt: z.string(),
     providerRevision: z.string()
-  }).default(void 0)
+  }).volatile().default(void 0)
 });
+/** cordis 用它校验 profile 行里的 `config:`；校验结果即 apply 的第二个参数。 */
+var Config = SETTINGS_SCHEMA;
 var ROUTE_STATE = "/api/community-market/state";
 var ROUTE_SOURCES = "/api/community-market/sources";
 var ROUTE_CATALOG = "/api/community-market/catalog";
@@ -5831,8 +5845,34 @@ function registerMarketRoutes(ctx, scope, installProvider, desktopActionsProvide
     routes.forEach((dispose) => dispose());
   };
 }
-function registerMarketSettings(ctx) {
-  return ctx.settings.register(MARKET_SETTINGS_NAMESPACE, SETTINGS_SCHEMA, { applies: "live" });
+/**
+ * 配置读写适配器：把内核的声明式配置面（volatile config 引用 + `settings.update`）
+ * 收成这个包一直在用的 `{ get(), update(patch) }` 形状。
+ *
+ * `describe()`/`update()` 的 ns 是 **profile 条目 id**（`entry.options.id`，我们的是
+ * `community-market`），不是包名也不是自定义命名空间，所以运行时从 fiber 上取、不写死。
+ */
+function marketScope(ctx, entryConfig) {
+  const unwrap = (value) => value !== null && typeof value?.get === "function" ? value.get() : value;
+  return {
+    get() {
+      const config = entryConfig ?? {};
+      return {
+        sources: unwrap(config.sources) ?? [],
+        installReceipts: unwrap(config.installReceipts) ?? [],
+        catalogCache: unwrap(config.catalogCache)
+      };
+    },
+    async update(patch) {
+      const entry = ctx.fiber?.entry;
+      const ns = entry?.options?.id;
+      if (typeof ns !== "string") {
+        throw new Error("community-market: 拿不到 profile 条目 id，无法写回配置");
+      }
+      const row = ctx.settings.describe().find((candidate) => candidate.ns === ns);
+      await ctx.settings.update(ns, patch, row?.revision);
+    }
+  };
 }
 var marketRoutes = {
   state: ROUTE_STATE,
@@ -5854,8 +5894,8 @@ var npmRegistryHttp = createRestrictedHttpClient({
   // This is a compiled-in official registry hostname, never provider input.
   syntheticProxyHostnames: ["registry.npmjs.org"]
 });
-function apply(ctx) {
-  const scope = registerMarketSettings(ctx);
+function apply(ctx, entryConfig) {
+  const scope = marketScope(ctx, entryConfig);
   let installService;
   let desktopActions;
   let desktopPlugins;
@@ -5929,6 +5969,7 @@ export {
   BUILT_IN_PROVIDERS,
   CatalogContractError,
   DefaultCatalogService,
+  Config,
   apply,
   applyScopedCatalogCursor,
   catalogIdentityChoices,

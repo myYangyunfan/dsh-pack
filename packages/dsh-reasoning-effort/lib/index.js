@@ -23,13 +23,26 @@ export const name = 'dsh-reasoning-effort';
  * RPC channel is mounted through `ctx.inject` instead of blocking this row.
  */
 export const inject = ['settings', 'llm'];
-/** Plugin-owned settings namespace (user-extensible knowledge base only). */
-const STORE_NS = 'dsh-reasoning-effort';
 /** The DSH namespace holding per-provider model declarations. */
 const LLM_NS = 'llm-pi-ai';
-/** Loopback RPC channel shared with the browser half. */
-const RPC_CHANNEL = '/dsh-reasoning-effort';
-const StoreSchema = z.object({
+/** Loopback RPC channel shared with the browser half. */const RPC_CHANNEL = '/dsh-reasoning-effort';
+/**
+ * Plugin configuration: the user-extensible knowledge base.
+ *
+ * 内核 0.1.7-rc.1 的 settings 服务（`SettingsForms`）只有
+ * `describe/update/configure/schema/prepareDocument`，**没有 `register`**——
+ * 官方包一律用「插件自己导出 `Config` schema」这条声明式路子
+ * （`@deepseek-ai/cordis` 的 `resolveConfig()` 拿它校验 profile 行里的 `config:`，
+ * 校验结果就是 `apply(ctx, config)` 收到的第二个参数）。原先这里调
+ * `settings.register(STORE_NS, StoreSchema)` 会在 apply 里抛
+ * `TypeError: settingsService.register is not a function` ⇒ 整条 not activate。
+ *
+ * 故意**不加 `.volatile()`**：本插件从不写配置（见文件头），加 volatile 会让
+ * `describe()` 给它生成表单、把一个 `z.array(z.any())` 塞进 volatileForm 投影，
+ * 而 `z.any()` 没有可投影的字段形状。用户扩展知识库走 profile 行的 `config:` 块，
+ * 改完重启应用（与仓库契约 8 一致）。
+ */
+export const Config = z.object({
     entries: z.array(z.any()).default([]),
 });
 function okResult(value) {
@@ -106,7 +119,7 @@ function entryHead(existing, model) {
         lines.push(`  maxTokens: ${existing.maxTokens}`);
     return { lines, complete: extra.length === 0 };
 }
-export function apply(ctx) {
+export function apply(ctx, entryConfig) {
     const settings = ctx.get('settings');
     const llm = ctx.get('llm');
     if (settings === undefined || llm === undefined)
@@ -114,11 +127,8 @@ export function apply(ctx) {
     // Aliased after the guard so closures below keep the narrowed types.
     const settingsService = settings;
     const llmService = llm;
-    const store = settingsService.register(STORE_NS, StoreSchema);
-    const readStore = () => {
-        const value = store.get();
-        return isRecord(value) ? value : {};
-    };
+    /** 用户扩展的知识库：来自 profile 行 `config:` 经 `Config` 校验后的值。 */
+    const readStore = () => (isRecord(entryConfig) ? entryConfig : {});
     /** The settings.yaml path, memoized (the file provider names it once). */
     let settingsPathPromise;
     const settingsPath = () => {
@@ -162,10 +172,11 @@ export function apply(ctx) {
      */
     function endpointWarning(provider) {
         try {
-            const section = settingsService.get(LLM_NS);
-            const route = isRecord(section) && isRecord(section.providers)
-                ? section.providers[provider]
-                : undefined;
+            // `settings.get(ns)` 在这个内核里不存在；读别的条目的生效配置只能走
+            // describe()（它按 profile 条目 id 返回 {ns, value, base, user, revision}）。
+            const descriptor = settingsService.describe().find((row) => row.ns === LLM_NS);
+            const section = isRecord(descriptor?.value) ? descriptor.value : {};
+            const route = isRecord(section.providers) ? section.providers[provider] : undefined;
             const baseURL = isRecord(route) && typeof route.baseURL === 'string' ? route.baseURL : '';
             if (baseURL.includes('maas.aliyuncs.com') || baseURL.includes('dashscope.aliyuncs.com')) {
                 return 'aliyunDeveloperRole';
