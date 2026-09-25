@@ -1,6 +1,7 @@
 # 第三方组件与许可（Third-party Notices）
 
-本清单描述 **DSH Pack 实际会发布出去的东西**：`packages/` 下的 42 个 npm 包。
+本清单描述 **DSH Pack 实际会发布出去的东西**：`packages/` 下的 npm 包（逐条见下表；
+阶梯退役后元包只剩 `@dsh-pack/all` 一个，所以总数比旧版清单少）。
 
 它由 `node tools/codemod/scan-licenses.mjs` 从磁盘实扫生成，不手抄。
 **别再从旧自制壳的依赖树生成**——旧那份 `THIRD_PARTY_NOTICES.md` 建自 772 包的开发机
@@ -15,12 +16,7 @@
 
 | 包 | 版本 | license | LICENSE 文件 | 署名 / 上游 | 自带 vendored |
 | --- | --- | --- | :---: | --- | ---: |
-| `@dsh-pack/core` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
-| `@dsh-pack/plus` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
-| `@dsh-pack/knowledge` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
-| `@dsh-pack/pocket` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
-| `@dsh-pack/bridge` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
-| `@dsh-pack/compaction` | 0.1.0 | MIT | ✓ | DSH Pack 分层元包 | - |
+| `@dsh-pack/all` | 0.1.0 | MIT | ✓ | DSH Pack 聚合元包（唯一的元包，32 个成员） | - |
 | `@dsh-pack/host-capabilities` | 0.1.0 | MIT | ✓ | DSH Desktop contributors | - |
 | `@dsh-pack/dsh-balance` | 0.1.1 | MIT | ✓ | DSH Desktop contributors | - |
 | `@dsh-pack/dsh-file-changes` | 0.1.0 | MIT | ✓ | DSH Desktop contributors | - |
@@ -87,8 +83,12 @@
 `dsh-pocket` 是包里唯一的 copyleft 组件（GPL-2.0）。我们的做法是**按上游原样依赖，不 fork**：
 
 - 仅依赖 = 聚合（aggregation），不触发 GPL 的派生作品条款；
-- 一旦 fork 并修改，`@dsh-pack/pocket` 整体变 GPL-2.0，并附带**源码提供义务**；
-- 需要改变它的行为时，走分层补丁行里的 `config:`，或向上游提 PR 要一个开关
+- 一旦 fork 并修改，`dsh-pocket` 这个包整体变 GPL-2.0，并附带**源码提供义务**
+  （阶梯分层退役后已无 `@dsh-pack/pocket` 元包，受影响的就是 `packages/dsh-pocket` 这一个包）；
+- 需要改变它的行为时，从补丁行的 `config:` 驱动（`packages/dsh-pocket/cordis.patch.yml`
+  那一行；该行目前没写 `config`，要加就加在这里，加完重跑
+  `node tools/build-meta-patches.mjs` 让 `@dsh-pack/all` 那行跟着走），
+  或向上游提 PR 要一个开关
   （已知需要的是把「是否受监督宿主」变成可配置，见 `docs/spike-official-client.md`）。
 
 ## 自带 vendored 依赖的包

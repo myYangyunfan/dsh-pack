@@ -104,6 +104,8 @@ darwin-arm64  darwin-x64  linux-arm64  linux-x64  win32-arm64  win32-x64
 - 风险等级：从「knowledge 层装不上 / 要 MSVC」下调为「安装期出现一次 ignored-builds 提示」。
 - 仍要把两步操作写进 `@dsh-pack/knowledge` 的 README（设置 → 插件 →「Allow these scripts and retry」），
   并让 CI 断言 `pendingBuilds` 里点名的就是这个包，防止说明腐烂。
+  *（后续修订：`knowledge` 作为元包已随阶梯退役，见 §0.3 末；这句放行说明现在挂在
+  `@dsh-pack/all` 与 `docs/recovery.md`，被点名的原生依赖来自其中的 `graph-memory`。）*
 - `graph-memory` 声明的是 `^1.0.0` 而实测可用的是 `1.2.1` ⇒ **锁精确版本**，
   否则浮到某个可能不带 win32 预编译的 1.x。
 
@@ -129,11 +131,30 @@ node_modules/@spike: meta@                            ← p1 未被登记
 
 嵌套元包（`@dsh-pack/desktop` → `@dsh-pack/core`）同理会是惰性的 ⇒ **不做嵌套**。
 
+> **后续修订（真机复测：阶梯分层已退役）**。本节「元包必须自带生成补丁层」与「不做嵌套」
+> 两条结论成立且已落地，但当时计划的**阶梯形状（`core` ⊂ `plus` ⊂ `knowledge`/`pocket`/
+> `bridge`/`compaction` ⊂ `all`）不成立**，原因在 `insert` 的语义上：内核
+> `@deepseek-ai/dsh-app-boot` 的 `applyEntryPatches` 处理 `insert` 是 `data.push(...insert)`，
+> 不看内容、**不按 id 去重**——「按 id 整行替换」只作用于**覆盖型补丁**
+> （`- id: X / 字段: 值`），不作用于 insert。于是任意两个已安装的层 insert 同一个 id，
+> 该插件就被装配两次，它的 host 半边第二次 `register` 同一条路由时抛
+> `webserver: duplicate exact route "…"`，真机表现为「N entries did not activate」。
+> 直接调内核的 `composeEntries` 实测：`meta-core` + `meta-all` 组合出 50 行、
+> **18 个重复 id**（取证脚本 `tools/itest/tier-overlap-proof.mjs`）。
+> ⇒ 六个阶梯元包已删除，现在只剩唯一的聚合元包 `@dsh-pack/all`（32 个成员）；
+> `tools/tiers.json` 里的 `tierOf` 退化成「按用途分组」的文档标签，不再生成元包、
+> 也不代表可以叠加安装的层。
+> ⚠ 残留风险面（当时没意识到）：按上面「bundle 机制」那条实测，每个成员都必须能单装
+> （自带 `cordis.patch.yml` + `package.json#dsh.bundle.patch`），所以「装了 `all` 之后
+> 又从『设置 → 插件』单独装其中一个成员」一样会双装配 —— 安装指引必须写明这一点。
+
 ## 0.4 `@dsh-pack` scope
 
 `npm view @dsh-pack/core` / `@dsh-pack/host-capabilities` 均 404（该 scope 下无任何已发布包），
 没有被别人占用的迹象。**未完成项**：需要人工在 npmjs.com 创建 `dsh-pack` org 并确认写权限，
 这一步不能代替用户完成，留作发布前置门。
+*（后续修订：`@dsh-pack/core` 这个包名已随阶梯分层退役、不会再发布，见 §0.3 末的修订；
+它在这里只是当时用来抽样探测 scope 是否可用的一个名字，「该 scope 无第三方占用」的结论不受影响。）*
 
 命名硬约束（来自 `dsh-app-boot` 的 `PACKAGE_NAME` 正则，它要能出现在
 `compatibility.json` 的 `allow-version @scope/x@ver` 键里）：只允许小写字母、数字、连字符、点、下划线，

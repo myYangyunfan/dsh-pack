@@ -16,10 +16,10 @@
 
 | 目录 | 说明 |
 | --- | --- |
-| `packages/` | 全部插件包（每个是一个可独立发布的 npm 包）+ 6 个分层元包 |
+| `packages/` | 全部插件包（每个是一个可独立发布的 npm 包）+ 唯一的聚合元包 `meta-all` |
 | `packages/host-capabilities/` | 宿主能力探针。**不是 bundle**，给别的包构建期内联 |
-| `tools/tiers.json` | 分层 → 成员清单，**唯一事实源**（取代已删除的 `COMPANION_PLUGINS`） |
-| `tools/build-meta-patches.mjs` | 由成员补丁层生成各元包的 `cordis.patch.yml` |
+| `tools/tiers.json` | 成员清单 + 用途分组，**唯一事实源**（取代已删除的 `COMPANION_PLUGINS`）。**只有一层 `all`**，见契约 4 |
+| `tools/build-meta-patches.mjs` | 由成员补丁层生成 `meta-all` 的 `cordis.patch.yml` |
 | `tools/audit/` | 6 项离线静态门禁，取代已删除的内核补丁校验机器 |
 | `tools/itest/` | 真装真组合的集成校验（J1 组合 / J2 tarball 启动 / J3 构建脚本放行） |
 | `docs/` | 面向用户与上游的文档；`docs/upstream/` 是提给上游的 bug 正文 |
@@ -57,10 +57,22 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
    实测 profile 自己的 `cordis.patch.yml` 会被原样保留成 `[]`——
    **我们不该往用户 profile 里写行**。
 4. **元包的传递依赖不会成为 bundle**（实测：装了 meta，其依赖既没进 `bundles`、
-   行也没组合，而且**不报错**）。⇒ 每个分层元包必须自带一份**生成出来的**
+   行也没组合，而且**不报错**）。⇒ 聚合元包必须自带一份**生成出来的**
    `cordis.patch.yml`，把成员的行全部拼进去。由 `tools/build-meta-patches.mjs` 生成，
    禁止手改；审计会断言「签入的元包补丁层 == 重新生成的结果」逐字节一致。
    **也不要做嵌套元包。**
+4b. **只允许一个元包，因为 `insert` 不去重。** 内核 `applyEntryPatches`
+   （`@deepseek-ai/dsh-app-boot`）处理 `insert` 是 `data.push(...insert)`：不看内容、
+   不按 id 去重 —— 「按 id 整行替换」只作用于**覆盖型补丁**（`- id: X / 字段: 值`），
+   **不作用于 insert**。所以任意两个已安装层 insert 同一个 id，该插件就被装配两次，
+   它的 host 半边第二次 `register` 同一条由时抛
+   `webserver: duplicate exact route "…"` → 条目 did not activate。
+   真机实测：阶梯（`core ⊂ plus ⊂ all`）同装时 core+all 组合出 **18 个重复 id**
+   （取证脚本 `tools/itest/tier-overlap-proof.mjs`，直接调内核的 `composeEntries`）。
+   ⇒ 阶梯元包已全部退役，只留 `@dsh-pack/all`；`tools/audit/self-mount.js` 断言
+   **分层成员集两两不相交**（error），别再把阶梯加回来。
+   ⚠ 残留风险面（现在只以 warn 报出）：成员按契约 3 必须能单装，因此
+   「装了 `all` 再从插件页单独装其中一个成员」同样会双装配 —— 安装指引必须写明。
 5. **`@deepseek-ai/*` 只能出现在 `peerDependencies`，绝不能进 `dependencies`。**
    机制：内核由 `collectInstallationScopePackages` 以「安装作用域链接表」供给每个 profile，
    实测 profile 自己的 `node_modules` 里**零个** `@deepseek-ai` 包，却有 92 处内核包引用
@@ -131,12 +143,28 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
   需要在「设置 → 插件」点「Allow these scripts and retry」。
   但**六个平台预编译（含 win32-x64/arm64）都在包内**，运行期 `node-gyp-build` 直接按
   `prebuilds/<platform>-<arch>/` 取二进制——那道点击是让安装器闭嘴，不是「不点就没二进制」。
-  因此原生依赖一律隔离在 `knowledge` 层，`core`/`plus` 永不触碰。
+  因此会被安装器列出来要放行的只有两处：`graph-memory` 的 `@photostructure/sqlite`
+  （`node-gyp-build`）与 `dsh-better-sidebar` 的 `node-pty`（optionalDependencies）。
+  `dsh-cardian` **没有**原生依赖（它的依赖只有 `zod` + peer），别把它算进「要放行的包」里。
 - **引用不存在的内核包不会响亮失败。** `dsh.client.inject` 写一个不存在的包名，
   只会产出一个永不挂载的 client 半边，仅在 Web boot audit 里以逐行 import 失败出现。
   实测抓到过两个幽灵名（`@deepseek-ai/dsh-client-runtime`、`-client-web-react`，
   对 277 个官方包名核实为不存在）。`namespace.js` 拦这个。
-- **`!!js` 求值失败对必需条目会停启动。** 我们自己的行**禁止**出现 `disabled: !!js`。
+- **`!!js` 求值失败对必需条目会停启动。** 我们自己的行**禁止新增** `disabled: !!js`。
+  唯一的历史例外是 `dsh-better-sidebar` 那行双挂载守卫：它的表达式形态
+  `[...ctx.loader.entries()].some((e) => e.options.name === …)` 已核对为内核自己的用法
+  （`@deepseek-ai/cordis-plugin-loader/lib/index.js:574` 逐字相同），`ctx.loader` 与
+  `entries()` 都存在，所以不会抛 —— 别把它当违规删掉（它防的是第三方聚合包，
+  不是我们的分层），也别照它新开更多的行。
+- **`exports["./client"]` 那份 bundle 里 `__ModuleLoader__.load({ id })` 必须写包名。**
+  内核 boot graph 行以包名为键（`dsh-client-modules/lib/client.js:625`），而 `register()`
+  的键是 `stripClientSuffix(registration.id)`（同文件 569）。注册名写成裸名
+  （`'dsh-input-fold'`）或换代前的 `@dsh-external/…` 时，那一行永远等不到，报
+  `loaded without registering "@dsh-pack/x"`，**失败形态是静默不挂载**（宿主照常起来、
+  插件没反应），用户只能从控制台看到。真机一次踩过 20 个包。
+  门禁：`tools/audit/publish-readiness.js`；批量改：`tools/codemod/fix-client-registration-id.mjs`
+  （只改 `exports["./client"]` 那一份，包内其它 load 站点如 rolldown 产物
+  `lib/client-registry.js` 不在 boot graph 上，改了会造出 duplicate factory registration）。
 - **`node-pty` 已删。** 它原先锁 `^1.1.0` 是为了和内核 `dsh-subprocess-local` 共享一条
   pnpm store 条目——这个理由在插件包形态下**已失效**（内核活在 asar 里，永不进 profile 的
   store），而上游本来就有 `ui-sidebar-terminal` + `dsh-terminal-bash`。

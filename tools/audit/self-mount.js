@@ -157,6 +157,47 @@ function loadTierMap(repoRoot = REPO_ROOT) {
   }
 }
 
+/**
+ * 元包成员重叠判据（P0，纯函数，给测试直接喂合成输入）。
+ *
+ * 为什么必须两两不相交：内核 `applyEntryPatches`（dsh-app-boot:61）处理 `insert` 的
+ * 方式是 `data.push(...insert)`，只把新行塞进查找表，**不按 id 去重**；而 patch 层
+ * 只从 bundle 声明解析（bundlePatchFiles），成员的传递依赖不会成为 bundle。
+ * 于是两个元包共有同一成员时，那一行被插入两次、该插件被装配两次：
+ *   · host 半边第二次 register 同一条由 → `webserver: duplicate exact route "…"`，
+ *     真机实测 core+all 组合出 18 个重复 id、7 个条目 did not activate；
+ *   · 用户写 `- id: X / disabled: true` 只会命中 entryMap 里**最后**插入的那一行，
+ *     前一行关不掉（R2 的按 id 覆盖在这里失效）。
+ * 历史疤一致：issue #104 就是双登记导致启动崩溃。
+ */
+function findTierOverlaps(tiers) {
+  const owner = new Map();
+  const overlaps = [];
+  for (const [tier, def] of Object.entries(tiers || {})) {
+    const members = def && (def.members || def.plugins);
+    if (!Array.isArray(members)) continue;
+    for (const item of members) {
+      const dir = typeof item === 'string' ? item : item && item.dir;
+      if (!dir) continue;
+      if (owner.has(dir)) overlaps.push({ dir, first: owner.get(dir), second: tier });
+      else owner.set(dir, tier);
+    }
+  }
+  return overlaps;
+}
+
+/** 读 tools/tiers.json 的原始 tiers 映射；文件缺失或坏 JSON 返回 null（由调用方决定怎么报）。 */
+function loadRawTiers(repoRoot = REPO_ROOT) {
+  const tiersPath = path.join(repoRoot, 'tools', 'tiers.json');
+  if (!fs.existsSync(tiersPath)) return null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(tiersPath, 'utf8'));
+    return parsed && typeof parsed.tiers === 'object' ? parsed.tiers : null;
+  } catch {
+    return null;
+  }
+}
+
 function run(ctx = {}) {
   const pack = ctx.pack || detectPackRoot();
   const findings = [];
@@ -281,8 +322,18 @@ function run(ctx = {}) {
   }
 
   // 同 id 多声明：只有**指向不同包**才是真危险（后写的层按 id 整行抢走别人的条目，
-  // issue #104 的双登记启动崩溃属此类）。元包与成员共用一条字节相同的 row 是设计使然，
-  // 按 id 整行替换下第二次应用是 no-op —— J1 已实测 41 包同装、69 id 无一歧义、dump 幂等。
+  // issue #104 的双登记启动崩溃属此类）。
+  //
+  // ⚠ 这里曾写过一条错误不变量：「元包与成员共用一条字节相同的 row 是设计使然，
+  // 按 id 整行替换下第二次应用是 no-op」。它把「整行替换」用错了地方 ——
+  // 整行替换只发生在**覆盖型补丁**（`- id: X / 字段: 值`）上；`insert` 走的是
+  // applyEntryPatches 里的 `data.push(...insert)`，不看内容、不按 id 去重
+  // （dsh-app-boot:61-92，实测见 tools/itest/tier-overlap-proof.mjs）。
+  // 所以同一个 id 被两个已安装层各 insert 一次 = **两行都在清单里 = 装配两次**，
+  // 真机表现就是 `webserver: duplicate exact route` 加一批 did not activate。
+  // 阶梯元包（core ⊂ plus ⊂ all）已因此全部退役，只留 all；剩下的风险面是
+  // 「装了 all 又单独装其中一个成员」，下面按仓库级一条 warn 如实报出来。
+  const duplicates = [];
   for (const [id, owners] of [...idOwners].sort()) {
     if (owners.length < 2) continue;
     const names = [...new Set(owners.map((o) => String(o.name)))];
@@ -312,15 +363,45 @@ function run(ctx = {}) {
       );
       continue;
     }
+    duplicates.push({ id, name: names[0] });
+  }
+
+  // 元包与成员同 id：两行都会进清单（见上面的不变量更正），所以「装了 all 又单独
+  // 装其中一个成员」= 该插件装配两次。这不算设计错（成员必须能单装，契约 3），
+  // 但它是一条真实用户路径，必须说出来而不是标成 no-op 糊过去。
+  if (duplicates.length) {
     findings.push(
       finding(
         CHECK,
-        'info',
-        `id ${JSON.stringify(id)} 由成员包与所属分层元包各插一次，两边 name 同为 ${names[0]}：` +
-          `补丁按 id 整行替换 ⇒ 重复应用是 no-op，属分层设计`,
-        owners[owners.length - 1].label
+        'warn',
+        `${String(duplicates.length)} 条 id 同时由成员包和 @dsh-pack/all 各 insert 一次` +
+          `（如 ${duplicates.slice(0, 3).map((d) => d.id).join('、')}）。` +
+          `内核 insert 不去重 ⇒ 用户「先装 all、再单独装其中一个插件」时那个插件会被装配两次，` +
+          `带 webServer 路由的会报 duplicate exact route。安装指引要写清楚：装了 all 就不要再单装成员。`,
+        '(仓库级)'
       )
     );
+  }
+
+  // 分层必须两两不相交：这是阶梯元包退役的锁，防止有人再把 core ⊂ all 这种形状加回来。
+  const rawTiers = ctx.rawTiers === undefined ? loadRawTiers() : ctx.rawTiers;
+  if (rawTiers === null) {
+    findings.push(
+      finding(CHECK, 'error', '读不到 tools/tiers.json 的 tiers 映射，分层重叠无法判定', '(仓库级)')
+    );
+  } else {
+    for (const o of findTierOverlaps(rawTiers)) {
+      findings.push(
+        finding(
+          CHECK,
+          'error',
+          `成员 ${o.dir} 同时属于 ${o.first} 与 ${o.second} 两层：两个元包同装时会把它 insert 两次，` +
+            `host 半边第二次 register 路由即报 webserver: duplicate exact route（真机实测 core+all = 18 个重复 id）。` +
+            `分层必须两两不相交 —— 只保留一个元包，或把它从其中一层删掉`,
+          '(仓库级)'
+        )
+      );
+    }
   }
   return findings;
 }
@@ -331,7 +412,17 @@ function companionOf(name) {
   return name.includes('/') ? name.slice(name.indexOf('/') + 1) : name;
 }
 
-module.exports = { CHECK, run, readBundlePatch, loadTierMap, META_PACKAGES, isMetaPackage, companionOf };
+module.exports = {
+  CHECK,
+  run,
+  readBundlePatch,
+  loadTierMap,
+  loadRawTiers,
+  findTierOverlaps,
+  META_PACKAGES,
+  isMetaPackage,
+  companionOf,
+};
 
 if (require.main === module) {
   const findings = run();

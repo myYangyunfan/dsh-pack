@@ -65,12 +65,14 @@
 
 CI 覆盖不到的必须手点一遍，逐条对照：
 
-- [ ] 在官方客户端「设置 → 插件」按包名装 `@dsh-pack/core` 成功
+- [ ] 在官方客户端「设置 → 插件」按包名装 `@dsh-pack/all` 成功
 - [ ] 重启应用后插件真的出现了（**注意：只刷新页面不会有**，注入清单是启动期快照）
-- [ ] 插件列表里能看到我们各分层及其行与 live entries
+- [ ] 插件列表里能看到我们这个元包及其行与 live entries，且**没有**条目报
+      「did not activate」/ `webserver: duplicate exact route`（装了 `all` 就别再单装成员，
+      内核的 `insert` 不去重，同 id 插两次就是双装配）
 - [ ] 关掉一个插件 → 重启后真的生效
-- [ ] `@dsh-pack/knowledge` 首次安装报 `pendingBuilds` 并点名 `@photostructure/sqlite`，
-      点「Allow these scripts and retry」后成功
+- [ ] 装 `@dsh-pack/all` 时若报 `ERR_PNPM_IGNORED_BUILDS` 并点名 `@photostructure/sqlite`
+      （它由 `all` 里的 `graph-memory` 带进来），点「Allow these scripts and retry」后成功
 - [ ] 故意在 profile 补丁层放一条坏行触发恢复对话框，确认 `docs/recovery.md` 的
       重新添加步骤确实能把包恢复回来（`sanitizeProfile` 会把整个包抹掉，这是已知行为）
 

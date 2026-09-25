@@ -1,7 +1,7 @@
 {
   "name": "@dsh-pack/all",
   "version": "0.1.0",
-  "description": "DSH Pack 全量层：一个输入装齐全部 32 个插件（core/plus/knowledge/pocket/bridge/compaction 并集）。",
+  "description": "DSH Pack 唯一聚合元包：装这一个包就齐了，32 个插件。不要再单独装其中的成员。",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",

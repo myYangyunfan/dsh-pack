@@ -1,7 +1,7 @@
 # DSH Pack
 
 > 装进**官方 DeepSeek Harness 桌面客户端**的插件整合包。
-> 32 个插件，分 6 个可叠加的分层，一条点击即可安装。
+> 32 个插件，装 `@dsh-pack/all` 一个包就齐了。
 
 <p align="center"><img src="docs/banner.svg" alt="DSH Pack" width="720"/></p>
 
@@ -20,39 +20,47 @@
 - 它不会坏了，但也**不会再更新**；`%LOCALAPPDATA%\Programs\DSH Desktop` 请自行卸载。
 - 你的会话、凭据、设置在 `~/.dsh` 下，**换客户端不会丢**——官方客户端读同一个 `~/.dsh`。
 - 迁移三步：① 装官方 DeepSeek Harness；② 打开它，登录/配好模型；
-  ③ 在「设置 → 插件」里装下面的分层。细节见 [`docs/recovery.md`](docs/recovery.md)。
+  ③ 在「设置 → 插件」里装 `@dsh-pack/all`。细节见 [`docs/recovery.md`](docs/recovery.md)。
 
 ---
 
 ## 怎么装
 
 在官方客户端内 **设置 → 插件**，按包名安装；或者直接对这个会话说
-「用 install_bundle 装 `@dsh-pack/core`」让 agent 代你装。
+「用 install_bundle 装 `@dsh-pack/all`」让 agent 代你装。
 
 > **命令行装不了。** `dsh plugin --profile desktop …` 会被官方 CLI 硬拦
 > （`profile "desktop" is managed exclusively by the Electron application`）——
 > 那是官方客户端自己独占的 profile。`dsh plugin` 只对自定义 profile 有效，
 > 那是开发/CI 用的路子，不是给官方客户端装插件的路子。
 
-### 分层
+### 一个包装齐：`@dsh-pack/all`
 
-| 分层 | 装什么 | 体积 | 说明 |
+**只装这一个包**，32 个插件就都在了。
+
+> ⚠ **装了 `all` 就不要再从插件页单独装其中的某一个插件。**
+> 每个插件本来都能单装（各自带一份挂载声明），而内核的补丁 `insert` 是按行追加、
+> 不按 id 去重的：同一个插件被 `all` 和它自己各插一次，就会被**装配两次**，
+> 第二次注册路由时报 `webserver: duplicate exact route`，那一项就不会激活。
+> 想要小集合，就**别装 `all`**，只按下面的用途分组挑单个插件装。
+
+### 按用途分组（挑着用，不是可叠加的层）
+
+| 分组 | 内容 | 体积 | 说明 |
 | --- | --- | --- | --- |
-| **`@dsh-pack/core`** | 18 个基础体验插件 | 小 | 建议必装。无原生模块，装完就生效 |
-| **`@dsh-pack/plus`** | 9 个较重的 UI / 宿主路由插件 | 中 | 对 `core` 加性。`harness-pet` 出厂是关的 |
-| `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85MB | 知识库 + 跨会话图谱记忆。**需要放行一次构建脚本**，见下 |
-| `@dsh-pack/pocket` | 手机扫码镜像/遥控 | ~45MB | 上游包，GPL-2.0，我们不 fork |
-| `@dsh-pack/bridge` | 微信 / 飞书渠道桥 | ~15MB | |
-| `@dsh-pack/compaction` | ACP 上下文压缩后端 | ~35MB | 装这一层本身就是开启 |
-
-分层是**加性**的、彼此不嵌套：`core` + `plus` 是推荐组合，其余按需叠加。
+| 基础体验（18 个） | 余额与费用、文件变更追踪与还原、拖入/粘贴、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义 | 小 | 无原生模块，装完就生效 |
+| 较重 UI / 宿主路由（9 个） | 右侧栏、MCP/skills 面板、synapse 画布、视觉与推理档位、prompt 优化、社区市场、zcode 历史迁移、`harness-pet` | 中 | `harness-pet` 出厂是关的 |
+| `dsh-cardian` + `graph-memory` | 知识库 + 跨会话图谱记忆 | ~85MB | 两者出厂都是关的；**放行构建脚本的是 `graph-memory`**（`@photostructure/sqlite`），`dsh-cardian` 没有原生依赖 |
+| `dsh-pocket` | 手机扫码镜像/遥控 | ~45MB | 上游包，GPL-2.0，我们不 fork |
+| `dsh-openclaw-bridge` | 微信 / 飞书渠道桥 | ~15MB | |
+| `billion-context-dsh` | ACP 上下文压缩后端 | ~35MB | 装上即开启 |
 
 ### 两件必须知道的事
 
 **① 启用/停用插件要重启应用，不是刷新页面。**
 官方宿主只在进程启动时抓一次页内注入清单，之后是快照。按 F5 看不到效果。
 
-**② `knowledge` 层会要求你放行一次构建脚本。**
+**② 带 `graph-memory` 的安装会要求你放行一次构建脚本。**
 pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sqlite` 带
 `"install": "node-gyp-build"`，所以第一次装会失败并列出待放行包。
 在「设置 → 插件」页面点 **「Allow these scripts and retry」** 即可，之后不再询问。
@@ -137,7 +145,8 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 ```bash
 pnpm install
 node tools/audit/index.js                      # 6 项静态门禁，发布前必须绿
-node tools/build-meta-patches.mjs              # 重新生成分层元包的补丁层
+node tools/build-meta-patches.mjs              # 由成员补丁层重新生成 meta-all 的补丁层
+node tools/itest/tier-overlap-proof.mjs        # 取证：元包同装会不会把成员插两次
 node --test "packages/*/test/*.test.js"        # 单测
 node tools/itest/boot-desktop-profile.mjs --job=j1   # 真装真组合（需 npm 装一份内核）
 ```

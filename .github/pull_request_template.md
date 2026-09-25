@@ -33,18 +33,20 @@ type ∈ feat / fix / refactor / perf / docs / test / chore / build
 - [ ] 涉及发布物（`files` / `exports` / 依赖声明）→ 跑
       `node tools/itest/boot-desktop-profile.mjs --job=j2`
       （**只有 tarball 安装能暴露 `files` 白名单错误**，路径安装会把它掩盖掉）
-- [ ] 涉及分层/挂载/补丁层 → 跑 `--job=j1`，确认全部 loader id 组合进最终树、
+- [ ] 涉及元包/挂载/补丁层 → 跑 `--job=j1`，确认全部 loader id 组合进最终树、
+      每个 id 在最终树里**恰好出现一次**（内核的 `insert` 不去重，插两次就是装配两次）、
       且无「同 id 指向不同包」、二次安装字节幂等
 
 ## 在官方客户端里的人工验收
 
 本仓库不再产出任何可执行程序，所以「启动应用验证」指的是：
-在**官方 DeepSeek Harness 客户端**里装受影响的分层，并确认功能真的生效。
+在**官方 DeepSeek Harness 客户端**里装受影响的包（`@dsh-pack/all`，或相关成员包），
+并确认功能真的生效。
 
 - [ ] 「设置 → 插件」里安装成功，**且重启应用后**生效
       （启用/停用只刷新页面不会有 —— 页内注入清单是宿主启动期快照）
 - [ ] 相关功能在真机上可见（截图或简短说明）
-- [ ] 若动了 `@dsh-pack/knowledge`：确认 pnpm 构建脚本放行的说明仍然准确
+- [ ] 若动了 `dsh-cardian` / `graph-memory`：确认 pnpm 构建脚本放行的说明仍然准确
       （`allowBuilds` 里是**就地改写 `set this to true or false` 这一行**，
       不要在文件里另加一个 `allowBuilds:` 键 —— YAML 重复键会让安装失败）
 

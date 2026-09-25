@@ -39,19 +39,22 @@ Windows 11 的 WSLg 能直接跑 Linux GUI 应用。官方客户端有 Linux 产
 npm i -g @deepseek-ai/dsh
 export DSH_HOME=/home/me/.dsh
 
-dsh plugin --profile work add @dsh-pack/core
-dsh plugin --profile work add @dsh-pack/plus
+dsh plugin --profile work add @dsh-pack/all
 dsh --profile work web --host 0.0.0.0 --port 0
 ```
 
 把打印出来的 URL 在 Windows 浏览器里打开即可。
 （`--host 0.0.0.0` 是给手机/局域网设备直连 web 端口时才需要的；
-日常用桌面客户端或 `@dsh-pack/pocket` 不需要。）
+日常用桌面客户端或 `dsh-pocket` 插件不需要。）
+
+这条路只有一个聚合元包 `@dsh-pack/all`，**没有可以叠加装的第二层**——
+内核组合补丁层时对 `insert` 不按 id 去重，`all` 里已有的成员再单独 `add` 一次就是把它
+装配两次。想只要小集合就别装 `all`，直接 `add` 你需要的成员包。
 
 这条路的限制也说清楚：
 
 - profile 名**不能**叫 `desktop`（`rejectElectronProfile` 硬拦，大小写不敏感）；
-- `@dsh-pack/knowledge` 需要放行 `@photostructure/sqlite` 的构建脚本——
+- `all` 里的 `graph-memory` 需要放行 `@photostructure/sqlite` 的构建脚本——
   纯 CLI 下没有那个「Allow these scripts and retry」按钮，
   要自己在 profile 的 `pnpm-workspace.yaml` 里把
   `allowBuilds` 下面那行 `set this to true or false` 改成 `true`（**就地改，别再新增一个 `allowBuilds:` 键，YAML 重复键会让安装失败**）；

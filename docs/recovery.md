@@ -39,30 +39,43 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 ⚠️ **注意这个动作的副作用**：它底层是 `sanitizeProfile`，会把 profile 的 `cordis.patch.yml`
 改名成一个 `.bak-<时间戳>` 兄弟文件，并把 bundle 列表**恢复成出厂那 3 项**。
 也就是说——**一次致命启动会把整个插件包从 profile 里抹掉**，不只是禁用。
-恢复完之后需要重新把各分层加回去（见下）。
+恢复完之后需要重新把包加回去（见下）。
 
 ## 把插件包加回来
 
-按需要的分层逐个装（在「设置 → 插件」里，或让 agent 装）：
+只有一个聚合元包，装它就够了（在「设置 → 插件」里按包名装，或让 agent 装）：
 
-| 分层 | 内容 | 体积 | 备注 |
-|---|---|---|---|
-| `@dsh-pack/core` | 18 个基础体验插件 | 小 | 无原生模块、无需构建脚本放行 |
-| `@dsh-pack/plus` | 9 个较重的 UI/宿主路由插件 | 中 | `harness-pet` 出厂是关的 |
-| `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85MB | **需要放行一次构建脚本**，见下 |
-| `@dsh-pack/pocket` | 手机扫码镜像 | ~45MB | GPL-2.0 上游包，我们不 fork |
-| `@dsh-pack/bridge` | 微信/飞书渠道桥 | ~15MB | |
-| `@dsh-pack/compaction` | ACP 上下文压缩后端 | ~35MB | 装这一层本身就是开启 |
+| 包 | 内容 | 备注 |
+|---|---|---|
+| `@dsh-pack/all` | 32 个插件（全部成员） | 里面带原生依赖的成员要放行一次构建脚本，见下 |
 
-`core` 与 `plus` 是加性关系，README 建议两个都装。分层刻意不做嵌套：
-实测元包的**传递依赖不会变成 bundle**，嵌套元包会静默地一个插件都不挂。
+装回来不等于全开：补丁层里有三个条目出厂就写着 `disabled: true` ——
+`harness-pet`、`dsh-cardian`、`graph-memory`，要用得在「设置 → 插件」里自己打开，
+然后**重启应用**（见文首那条）。
+
+⚠️ **装了 `all` 就不要再从「设置 → 插件」单独装其中的某一个成员。**
+每个成员包按设计都必须能单独安装（各自带一份 `cordis.patch.yml`，由
+`package.json#dsh.bundle.patch` 指过去），于是「`all` + 其中一个成员」会让那个成员的行
+被 **insert 两次**——内核 `applyEntryPatches` 处理 `insert` 是 `data.push(...insert)`，
+不看内容、不按 id 去重（「按 id 整行替换」只作用于覆盖型补丁 `- id: X / 字段: 值`，
+**不作用于 insert**）。同一个插件被装配两次，它的 host 半边第二次注册同一条路由时抛
+`webserver: duplicate exact route "…"`，真机表现为「N entries did not activate」。
+想要一个小集合，就**只单独装那几个成员包，别和 `all` 混装**。
+
+原来那套阶梯分层（`core` ⊂ `plus` ⊂ `all`）已经全部退役，原因同上：
+`core` 与 `all` 同装时组合出 50 行、**18 个重复 id**（取证脚本
+`tools/itest/tier-overlap-proof.mjs`，直接调内核的 `composeEntries`）。
+成员在 `tools/tiers.json` 里仍留着 `tierOf` 标签，但那只是「按用途分组」的文档口径，
+**不再生成元包，也不代表可以叠加安装的层**。
+元包也只此一个、不做嵌套：实测元包的**传递依赖不会变成 bundle**，
+所以 `all` 自带一份由成员补丁层拼接生成的 `cordis.patch.yml`。
 
 ## 「Allow these scripts and retry」是怎么来的
 
-pnpm 11 默认拦依赖的 install 脚本。会撞上它的有两个 node-gyp 原生可选依赖：
-`@photostructure/sqlite`（`@dsh-pack/knowledge` 里的 `graph-memory`）与
-`node-pty`（`@dsh-pack/plus` 里 `dsh-better-sidebar` 的终端标签）。所以装这两层时
-可能失败并列出 `pendingBuilds`：
+pnpm 11 默认拦依赖的 install 脚本。`all` 里会撞上它的，是带原生依赖的成员：
+`@photostructure/sqlite`（`graph-memory` 的依赖，`install` 脚本是 `node-gyp-build`）与
+`node-pty`（`dsh-better-sidebar` 的终端标签，声明在 `optionalDependencies` 里）。
+所以装 `@dsh-pack/all` 时可能失败并列出 `pendingBuilds`：
 
 ```
 [ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @photostructure/sqlite@1.2.1

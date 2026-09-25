@@ -1,7 +1,7 @@
 # DSH Pack
 
 > A plugin pack for the **official DeepSeek Harness desktop client**.
-> 32 plugins across 6 stackable tiers.
+> 32 plugins — install the single `@dsh-pack/all` package and you are done.
 
 **This repository is no longer a desktop client.** It used to be one
 (`dsh-tauri/` Rust shell + `dsh-desktop/` kernel-side machinery) wrapping the upstream
@@ -18,7 +18,7 @@ It won't break, but **it will never update again**. Uninstall
 
 Your sessions, credentials and settings live under `~/.dsh` and **are not lost** — the
 official client reads the same `~/.dsh`. Migrate in three steps: install the official
-DeepSeek Harness, sign in / configure models, then install the tiers below from
+DeepSeek Harness, sign in / configure models, then install `@dsh-pack/all` from
 **Settings → Plugins**. Details in [`docs/recovery.md`](docs/recovery.md)
 (the doc is Chinese; the steps are the shape).
 
@@ -32,18 +32,28 @@ the in-app agent to `install_bundle` it for you.
 > That profile belongs to the desktop app. `dsh plugin` only works on *custom* profiles,
 > which is the development/CI path, not the user path.
 
-### Tiers
+### One package installs everything: `@dsh-pack/all`
 
-| Tier | Contents | Size | Notes |
+Install this single package and all 32 plugins are in.
+
+> ⚠ **Once you have `all`, do not also install any of its members individually.**
+> Every plugin is self-mounting by design, and the kernel's patch `insert` appends
+> rows — it does not de-duplicate by id. A plugin inserted once by `all` and once by
+> its own layer gets **mounted twice**, and its second route registration throws
+> `webserver: duplicate exact route`, which stops that entry from activating.
+> Want a smaller set instead? Then skip `all` and pick individual plugins from the
+> groups below.
+
+### Groups (pick from these; they are not stackable tiers)
+
+| Group | Contents | Size | Notes |
 | --- | --- | --- | --- |
-| **`@dsh-pack/core`** | 18 everyday plugins | small | Recommended. No native modules, works immediately |
-| **`@dsh-pack/plus`** | 9 heavier UI / host-route plugins | medium | Additive to `core`. `harness-pet` ships disabled |
-| `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85 MB | Knowledge base + cross-session graph memory. **Needs a one-time build-script approval** |
-| `@dsh-pack/pocket` | phone QR mirroring | ~45 MB | Upstream package, GPL-2.0 — we depend on it, we do not fork it |
-| `@dsh-pack/bridge` | WeChat / Feishu channel bridge | ~15 MB | |
-| `@dsh-pack/compaction` | ACP-driven context compaction backend | ~35 MB | Installing this tier *is* the opt-in |
-
-Tiers are additive and deliberately **not nested**.
+| Everyday (18) | balance & per-turn cost, file-change tracking and revert, drag/paste, input history and folding, auto-compact, change review, off-peak price guard, settings tidy-up, Quest UI, subagent lens, message recall, workspace anchor, custom system prompt | small | No native modules, works immediately |
+| Heavier UI / host routes (9) | right sidebar, MCP/skills panel, synapse canvas, vision & reasoning effort, prompt optimizer, community market, zcode history migration, `harness-pet` | medium | `harness-pet` ships disabled |
+| `dsh-cardian` + `graph-memory` | knowledge base + cross-session graph memory | ~85 MB | `graph-memory` **needs a one-time build-script approval** (`dsh-cardian` has no native deps); both ship disabled |
+| `dsh-pocket` | phone QR mirroring | ~45 MB | Upstream package, GPL-2.0 — we depend on it, we do not fork it |
+| `dsh-openclaw-bridge` | WeChat / Feishu channel bridge | ~15 MB | |
+| `billion-context-dsh` | ACP-driven context compaction backend | ~35 MB | Installing it *is* the opt-in |
 
 ## Two things you must know
 
@@ -51,7 +61,7 @@ Tiers are additive and deliberately **not nested**.
 The host captures the page-injection list once at startup; after that it is a snapshot.
 Pressing F5 will show nothing.
 
-**2. The `knowledge` tier asks you to approve a build script once.**
+**2. Anything pulling in `graph-memory` asks you to approve a build script once.**
 pnpm 11 blocks dependency install scripts by default, and `@photostructure/sqlite` has
 `"install": "node-gyp-build"`, so the first install fails and lists a pending build.
 Click **“Allow these scripts and retry”** in Settings → Plugins. It persists by package name.
@@ -96,7 +106,7 @@ Full per-plugin list and live toggles: Settings → Plugins, once installed.
 ```bash
 pnpm install
 node tools/audit/index.js                       # 6 static gates; P0 among them
-node tools/build-meta-patches.mjs               # regenerate tier meta patch layers
+node tools/build-meta-patches.mjs               # regenerate meta-all patch layer
 node --test "packages/*/test/*.test.js"
 node tools/itest/boot-desktop-profile.mjs --job=j1   # real install + real composition
 ```
