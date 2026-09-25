@@ -48,7 +48,7 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 | 分层 | 内容 | 体积 | 备注 |
 |---|---|---|---|
 | `@dsh-pack/core` | 18 个基础体验插件 | 小 | 无原生模块、无需构建脚本放行 |
-| `@dsh-pack/plus` | 11 个较重的 UI/宿主路由插件 | 中 | `harness-pet`、`dsh-super-injector` 出厂是关的 |
+| `@dsh-pack/plus` | 9 个较重的 UI/宿主路由插件 | 中 | `harness-pet` 出厂是关的 |
 | `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85MB | **需要放行一次构建脚本**，见下 |
 | `@dsh-pack/pocket` | 手机扫码镜像 | ~45MB | GPL-2.0 上游包，我们不 fork |
 | `@dsh-pack/bridge` | 微信/飞书渠道桥 | ~15MB | |

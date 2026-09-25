@@ -55,22 +55,32 @@
 | `@dsh-pack/dsh-openclaw-bridge` | 0.8.0 | MIT | ✓ | openclaw-dsh-bridge contributors | - |
 | `@dsh-pack/dsh-vision` | 0.3.0 | BSD-3-Clause | ✓ | dsh-external | - |
 | `@dsh-pack/dsh-pocket` | 2.10.6 | **GPL-2.0** | ✓ | Free Software Foundation, Inc.（标准 GPL 文本） | 26 |
-| `@dsh-pack/dsh-side-session` | 0.3.1 | MIT | **✗ 缺文件** | — 未核实 | - |
-| `@dsh-pack/dsh-super-injector` | 0.3.1 | **BSD-3-Clause** | **✗ 缺文件** | — 未核实 | - |
+| ~~`@dsh-pack/dsh-side-session`~~ **已移出发布面** | 0.3.1 | 声明 MIT，但上游无 LICENSE | — | hzhz314159/dsh-side-session（存在） | 见 `not-shipped/` |
+| ~~`@dsh-pack/dsh-super-injector`~~ **已移出发布面** | 0.3.1 | **BSD-3-Clause**，无上游原文可引 | — | 上游仓库 404，不可核实 | 见 `not-shipped/` |
 
-## ⚠ 发布前必须处理的三项
+## ⚠ 已从发布面移除的两个包（不是「待补 LICENSE」，是不可再分发）
 
-1. **`dsh-super-injector` 声明 BSD-3-Clause 但没有 LICENSE 文件。**
-   BSD-3-Clause 要求随包分发**原始版权声明与免责条款**——不能拿我们的 MIT 模板顶上
-   （`tools/codemod/add-first-party-license.mjs` 正是因此把它排除在第一方批量补证之外）。
-   必须取上游原文与署名人，否则**不发布这个包**。
-2. **`dsh-side-session` 声明 MIT 但既无 LICENSE 文件也无署名，且原先挂在
-   `@dsh-external/` 这个不属于我们的 scope 下、`package.json` 无 `repository` 字段。**
-   出处未核实前不发布。
-3. **`dsh-vision` 同为 BSD-3-Clause**（有 LICENSE 文件）。发布前核对其署名行与上游一致。
+调查过程与完整证据见 [`not-shipped/README.md`](not-shipped/README.md)。摘要：
 
-`docs/attributions.md` 里还记着 `v4-flash-godmode-opencode-go` 上游**无 LICENSE** 这一条，
-不过随 9 个 agent-presets 一并删除，已不再是发布物。
+| 包 | 查证结果 | 为什么不发 |
+| --- | --- | --- |
+| `dsh-super-injector` | npm 无此包；社区目录给的仓库 `github.com/dsh-external/dsh-super-injector` 返回 **404**；无 author；而且我们**改过它的源码** | manifest 写 BSD-3-Clause 却没有任何上游原文可引。由我们补一份 BSD-3 再填个署名，等于**伪造许可来源** |
+| `dsh-side-session` | 上游 `github.com/hzhz314159/dsh-side-session` **真实存在**（描述与内置插件逐字吻合），但**没有 LICENSE 文件**；npm 无此包 | 无许可证 = 保留所有权利。我们此前给它标 `license: "MIT"` 本身就是不实标注，无权以 MIT 再分发 |
+
+两者已从 `tools/tiers.json` 摘除（`plus` 11 → 9，分层成员合计 32），源码移到 `not-shipped/`
+留在仓库作对照，但**不进 `packages/`** —— 这样审计与打包门禁的绿灯只覆盖我们真能发的东西。
+
+需要 `dsh-side-session` 的用户，可在「设置 → 插件 → GitHub 仓库地址」填上游地址直接装：
+那是他与原作者之间的授权关系，不需要我们冒名再分发。
+
+## 其余许可事项
+
+1. **`dsh-vision` 是 BSD-3-Clause**（有 LICENSE 文件）。发布前核对其署名行与上游一致。
+2. **`dsh-pocket` 为 GPL-2.0**，按上游原样依赖、不 fork。
+3. **`graph-memory` 的 `license: "MIT"` 已核对准确**：磁盘 LICENSE 是
+   `MIT License, Copyright (c) 2026 adoresever (Wywelljob@gmail.com)`。
+4. `docs/attributions.md` 记的 `v4-flash-godmode-opencode-go` 上游无 LICENSE 一条已不再是发布物
+   —— 9 个 agent-presets 随自制壳一并删除。
 
 ## GPL-2.0 组件的处理方式
 

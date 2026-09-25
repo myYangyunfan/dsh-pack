@@ -1,7 +1,7 @@
 # DSH Pack
 
 > A plugin pack for the **official DeepSeek Harness desktop client**.
-> 34 plugins across 6 stackable tiers.
+> 32 plugins across 6 stackable tiers.
 
 **This repository is no longer a desktop client.** It used to be one
 (`dsh-tauri/` Rust shell + `dsh-desktop/` kernel-side machinery) wrapping the upstream
@@ -37,7 +37,7 @@ the in-app agent to `install_bundle` it for you.
 | Tier | Contents | Size | Notes |
 | --- | --- | --- | --- |
 | **`@dsh-pack/core`** | 18 everyday plugins | small | Recommended. No native modules, works immediately |
-| **`@dsh-pack/plus`** | 11 heavier UI / host-route plugins | medium | Additive to `core`. `harness-pet` and `dsh-super-injector` ship disabled |
+| **`@dsh-pack/plus`** | 9 heavier UI / host-route plugins | medium | Additive to `core`. `harness-pet` ships disabled |
 | `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85 MB | Knowledge base + cross-session graph memory. **Needs a one-time build-script approval** |
 | `@dsh-pack/pocket` | phone QR mirroring | ~45 MB | Upstream package, GPL-2.0 — we depend on it, we do not fork it |
 | `@dsh-pack/bridge` | WeChat / Feishu channel bridge | ~15 MB | |
@@ -87,7 +87,7 @@ prompt, workspace anchor.
 
 `plus`: VSCode-like right sidebar, MCP/skills/rules panel, peak price guard, synapse canvas,
 side session, reasoning-effort picker, `view_image` for text-only models, prompt optimizer,
-community plugin market, zcode history migration, super injector, pet.
+community plugin market, zcode history migration, pet.
 
 Full per-plugin list and live toggles: Settings → Plugins, once installed.
 

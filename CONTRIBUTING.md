@@ -40,7 +40,7 @@ DSH_KERNEL_BIN=/tmp/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js \
 | `tools/audit/` | 6 项离线静态门禁 |
 | `tools/itest/` | 真装真组合的集成校验（J1 组合 / J2 tarball / J3 构建脚本放行） |
 
-当前分层：`core`(18)、`plus`(11)、`knowledge`(2)、`pocket`、`bridge`、`compaction`。
+当前分层：`core`(18)、`plus`(9)、`knowledge`(2)、`pocket`、`bridge`、`compaction`。
 分层是**加性**的、彼此不重叠，也**不做嵌套**（实测嵌套/传递依赖不会成为 bundle，会静默不挂载）。
 
 ## 加一个插件的完整清单

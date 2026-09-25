@@ -2,7 +2,7 @@
 # 改动的正确姿势：改 tools/tiers.json（层与成员）或改成员包自己的
 # cordis.patch.yml（行内容），然后跑 node tools/build-meta-patches.mjs 重新生成。
 #
-# 层：增强层（meta-plus / 发布名 @dsh-pack/plus），成员 11 个。
+# 层：增强层（meta-plus / 发布名 @dsh-pack/plus），成员 9 个。
 #
 # 为什么元包要自带这些行：docs/spike-official-client.md §0.3 实测——元包光靠
 # dependencies 是惰性的（传递依赖不会成为 bundle，row 也完全不组合，且用户无报错）。
@@ -36,15 +36,6 @@
         # Extra authorities the /synapse Host check accepts (host or host:port);
         # localhost and 127.0.0.1 are always allowed.
         trustedHosts: []
-    # ── dsh-side-session ── 临时会话：独立悬浮窗，自动导入主对话上下文，不污染主会话
-    - id: side-session
-      name: '@dsh-pack/dsh-side-session'
-      config: {}
-    # ── dsh-super-injector ── 超级模组注入器：运行时注入本地插件包，不碰 patch / 不重启
-    - id: dsh-super-injector
-      name: '@dsh-pack/dsh-super-injector'
-      disabled: true
-      config: {}
     # ── dsh-prompt-optimizer ── 输入框 prompt 一键润色为结构化高质量提示
     - id: prompt-optimizer
       name: '@dsh-pack/dsh-prompt-optimizer'

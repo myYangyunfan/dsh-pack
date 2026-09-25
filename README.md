@@ -1,7 +1,7 @@
 # DSH Pack
 
 > 装进**官方 DeepSeek Harness 桌面客户端**的插件整合包。
-> 34 个插件，分 6 个可叠加的分层，一条点击即可安装。
+> 32 个插件，分 6 个可叠加的分层，一条点击即可安装。
 
 <p align="center"><img src="docs/banner.svg" alt="DSH Pack" width="720"/></p>
 
@@ -39,7 +39,7 @@
 | 分层 | 装什么 | 体积 | 说明 |
 | --- | --- | --- | --- |
 | **`@dsh-pack/core`** | 18 个基础体验插件 | 小 | 建议必装。无原生模块，装完就生效 |
-| **`@dsh-pack/plus`** | 11 个较重的 UI / 宿主路由插件 | 中 | 对 `core` 加性。`harness-pet`、`dsh-super-injector` 出厂是关的 |
+| **`@dsh-pack/plus`** | 9 个较重的 UI / 宿主路由插件 | 中 | 对 `core` 加性。`harness-pet` 出厂是关的 |
 | `@dsh-pack/knowledge` | `dsh-cardian` + `graph-memory` | ~85MB | 知识库 + 跨会话图谱记忆。**需要放行一次构建脚本**，见下 |
 | `@dsh-pack/pocket` | 手机扫码镜像/遥控 | ~45MB | 上游包，GPL-2.0，我们不 fork |
 | `@dsh-pack/bridge` | 微信 / 飞书渠道桥 | ~15MB | |
@@ -89,14 +89,18 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
   按会话隔离。用的是内核公开的右栏标签 API，不是改内核。
 - **`dsh-basics-panel`** 一处集中查看/管理 MCP server、skills、rules。
 - **`dsh-synapse`** 可拖拽缩放的非线性会话画布（分支、追问）。
-- **`dsh-side-session`** 浮动窗口里的临时会话，自动带入主会话上下文。
 - **`dsh-reasoning-effort`** 从模型目录取 `reasoning.efforts` 的 Codex 风格模型/思考档位选择器。
 - **`dsh-vision`** 给纯文本的 DeepSeek 补一个 `view_image` 工具（走任意 OpenAI 兼容 VLM）。
 - **`dsh-prompt-optimizer`** 一键把输入区草稿打磨成结构化 prompt。
 - **`dsh-community-market`** 可视化插件市场：开放目录源、搜索、校验过的 npm 安装、开关与回执。
 - **`dsh-zcode-migrate`** 把 zcode CLI 的 SQLite 历史转成原生 dsh 会话日志。
-- **`dsh-super-injector`** *（出厂关）* BepInEx 风格的运行时插件注入器：junction 挂载本地包、热重载。
 - **`harness-pet`** *（出厂关）* 一只页内小鲸鱼。
+
+> 原先这一层还含 `dsh-side-session`（浮动窗口临时会话）与 `dsh-super-injector`
+> （运行时插件注入器）。查证后两者**不由我们发布**：前者上游仓库存在但没有任何 LICENSE
+> （无许可证即保留所有权利），后者上游地址直接 404、且我们改过它的源码。
+> 详见 [`not-shipped/README.md`](not-shipped/README.md)；需要 side-session 的话，
+> 在「设置 → 插件」填上游 GitHub 地址自行安装即可，那是你与作者之间的授权关系。
 
 ### 可选大件
 

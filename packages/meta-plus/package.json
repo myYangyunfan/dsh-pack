@@ -28,8 +28,6 @@
     "@dsh-pack/dsh-reasoning-effort": "^0.7.0",
     "@dsh-pack/dsh-vision": "^0.3.0",
     "@dsh-pack/dsh-synapse": "^0.3.0",
-    "@dsh-pack/dsh-side-session": "^0.3.1",
-    "@dsh-pack/dsh-super-injector": "^0.3.1",
     "@dsh-pack/dsh-prompt-optimizer": "^2.0.3",
     "@dsh-pack/dsh-zcode-migrate": "^0.1.1",
     "@dsh-pack/dsh-community-market": "^0.1.1",
