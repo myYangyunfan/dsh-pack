@@ -12,6 +12,20 @@
 // 用法：node tools/codemod/publish-local-preview.mjs [registryUrl] [--userconfig=<文件>]
 // 默认 http://127.0.0.1:14873
 //
+// ⚠ 踩过一次的坑，别再来：**不要对同一个版本号发不同内容的包**。
+// 我改完 better-sidebar 依赖后按原版本 0.15.3 重发，registry 的清单确实新了，
+// 但 pnpm 仍按自己缓存的旧 tarball 解析（锁文件里那条 optionalDependencies 就是证据），
+// 于是看起来像「plus 层还在拉 node-pty」——实际是我发的陈旧包。
+// 正式 registry 禁止覆盖同版本，所以这坑不会在真实发版里复现；
+// 预览时要么先整包删除（本脚本的 --purge），要么换版本号。
+//
+// 另外两个鉴权/进程上的坑（都实际撞过）：
+//   · 别把 verdaccio 的输出接 `| head`：管道关闭会给服务发 SIGPIPE 把它静默杀掉，
+//     之后所有 publish 报 401/拒绝，看起来像配置问题；
+//   · 取 token 的 `node -p` 如果解析失败会把一个 Socket 对象打到 stdout，
+//     被命令替换写进 .npmrc，npm 就把每一行当配置键解析 → ENEEDAUTH。
+//     要拿 token 就让 node 自己写文件，别过 shell。
+//
 // 为什么带 --ignore-scripts：6 个包（better-sidebar / cardian / easyrewrite / synapse /
 // graph-memory / harness-pet）在 package.json 里挂了 prepare/prepack/prepublishOnly，
 // npm publish 必然执行它们 —— 那要求完整构建工具链，而且会用 src/ 重新生成 lib/，
@@ -29,6 +43,7 @@ const PKGS = join(REPO, 'packages');
 const argv = process.argv.slice(2);
 const REGISTRY = (argv.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:14873').replace(/\/$/, '');
 const userconfigArg = argv.find((a) => a.startsWith('--userconfig='));
+const PURGE = argv.includes('--purge');
 
 const done = [];
 const failed = [];
@@ -64,9 +79,17 @@ for (const dir of readdirSync(PKGS).sort()) {
   // prerelease（如 graph-memory 的 1.6.0-beta.1）不带 --tag 会被 npm 直接拒绝：
   //   "You must specify a tag using --tag when publishing a prerelease version."
   const isPrerelease = /-[0-9A-Za-z.]/.test(manifest.version) && manifest.version.includes('-');
-  const args = ['publish', '--registry', REGISTRY, '--access', 'public', '--no-audit', '--no-fund', '--ignore-scripts'];
+  const cfgArgs = userconfigArg ? [`--userconfig=${userconfigArg.split('=')[1]}`] : [];
+  const args = ['publish', '--registry', REGISTRY, '--access', 'public', '--no-audit', '--no-fund', '--ignore-scripts', ...cfgArgs];
   if (isPrerelease) args.push('--tag', 'beta');
-  if (userconfigArg) args.push(`--userconfig=${userconfigArg.split('=')[1]}`);
+  // 同名版本重发会「成功但内容陈旧」（pnpm 按版本缓存 tarball），所以 --purge 先整包撤下。
+  if (PURGE) {
+    spawnSync(process.execPath, [npmCli, 'unpublish', manifest.name, '--force', '--registry', REGISTRY, ...cfgArgs], {
+      cwd: pkgDir,
+      encoding: 'utf8',
+      timeout: 60000,
+    });
+  }
   const r = spawnSync(process.execPath, [npmCli, ...args], {
     cwd: pkgDir,
     encoding: 'utf8',
