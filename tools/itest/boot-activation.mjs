@@ -32,12 +32,16 @@ const argOf = (name, dflt) => {
   return hit ? hit.split('=')[1] : dflt;
 };
 const PROFILE = argOf('profile', 'desktop');
+const SRC_PROFILE_ARG = argOf('profileDir', '');
 const TIMEOUT = Number(argOf('timeout', 60)) * 1000;
-const SRC_PROFILE = join(REAL_HOME, 'profiles', PROFILE);
+// 默认从真实 ~/.dsh/profiles/<name> 取一份现成 profile 当模板（本机验证）；
+// CI 上没有 ~/.dsh，用 --profileDir 指一个已经真装好的 profile（例如 J2 从 tarball 装出来的那个）。
+const SRC_PROFILE = SRC_PROFILE_ARG || join(REAL_HOME, 'profiles', PROFILE);
 
-// 隔离断言：本 job 只读真实 profile 作为拷贝源，运行期 DSH_HOME 必须在临时目录。
 if (!existsSync(SRC_PROFILE)) {
   console.error(`找不到源 profile：${SRC_PROFILE}`);
+  console.error('本机：确认 ~/.dsh/profiles/' + PROFILE + ' 存在；');
+  console.error('CI：传 --profileDir=<已真装好的 profile 目录>（J4 不能拿空 profile 跑，那是空跑）');
   process.exit(2);
 }
 const HOME = mkdtempSync(join(tmpdir(), 'dsh-activation-'));
@@ -107,6 +111,24 @@ try {
   if (failed.length) {
     console.log(`\n✗ J4 未通过，${failed.length} 项：`);
     for (const f of failed) console.log(`  · ${f.slice(0, 220)}`);
+    // 内核把完整启动诊断落到 $DSH_HOME/logs/startup-*.log，里面有被 stderr 摘要
+    // 省掉的原始错误（"failed to import" 只给结论不给原因）。失败时把它一并打出来，
+    // 并留一份副本 —— 否则 finally 删掉临时目录后就再也查不到了。
+    const logs = existsSync(join(HOME, 'logs')) ? readdirSync(join(HOME, 'logs')) : [];
+    const keep = join(REPO, '.tmp-j4-diagnostics.log');
+    let dump = '';
+    for (const name of logs.filter((n) => n.startsWith('startup-')).sort()) {
+      try { dump += readFileSync(join(HOME, 'logs', name), 'utf8'); } catch { /* 读不到就跳过 */ }
+    }
+    if (dump) {
+      writeFileSync(keep, dump);
+      const interesting = dump.split('\n')
+        .filter((l) => /Error|error|failed|Cannot|Unexpected|is not/.test(l))
+        .filter((l) => !/^\s*at /.test(l));
+      console.log('\n--- 内核启动诊断（错误行）---');
+      for (const l of [...new Set(interesting)].slice(0, 20)) console.log(`  ${l.slice(0, 220)}`);
+      console.log(`\n完整诊断已留到 ${keep}`);
+    }
     process.exitCode = 1;
   } else {
     console.log('\n✅ J4 通过：@dsh-pack 条目全部激活，无降级日志、无 duplicate route。');

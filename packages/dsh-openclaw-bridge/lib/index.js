@@ -45,6 +45,42 @@ import { segmentReply, sessionIdFor, createSessionMap } from "./core/session.js"
 import { qrSvg } from "./core/qrcode.js";
 import { OpenAiCompatAdapter, PROVIDER_ID } from "./openai-compat.js";
 
+// <<BEGIN settings-host（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
+const VOLATILE_WRITE = Symbol.for("cosmokit.volatile.write");
+
+/** 把 config 里的 volatile 引用摊平成普通值（同 dsh-settings 的 plainConfig）。 */
+function plainSettings(value) {
+	if (typeof value !== "object" || value === null) return value;
+	if (VOLATILE_WRITE in value) return plainSettings(typeof value.get === "function" ? value.get() : undefined);
+	if (Array.isArray(value)) return value.map(plainSettings);
+	return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, plainSettings(child)]));
+}
+
+/**
+ * 用声明式 Config 顶掉不存在的 ctx.settings.register。
+ * @param ctx - 本插件作用域
+ * @param entryConfig - apply 第二参（resolveConfig 校验过的 profile 行 config）
+ * @param entryId - **profile 条目 id**，即 settings/document-updated 回传的 ns
+ * @returns 与旧 scope 同名的 { get(), watch(fn) }，调用方不必改形状
+ */
+function mountSettingsScope(ctx, entryConfig, entryId) {
+	const state = { current: plainSettings(entryConfig) || {} };
+	const listeners = /* @__PURE__ */ new Set();
+	ctx.on("settings/document-updated", (ns) => {
+		if (ns !== entryId) return;
+		state.current = plainSettings(entryConfig) || {};
+		for (const fn of [...listeners]) fn(state.current);
+	});
+	return {
+		get: () => state.current,
+		watch(fn) {
+			listeners.add(fn);
+			return () => { listeners.delete(fn); };
+		}
+	};
+}
+// <<END settings-host>>
+
 // 必须与 bundle 补丁行里的 name 以及 client.js 的 __ModuleLoader__ id 一致，
 // 改名后若留旧值，页内半边会因 id 对不上而静默不加载。
 const name = "@dsh-pack/dsh-openclaw-bridge";
@@ -63,38 +99,38 @@ const NS = "openclaw-bridge";
 const Config = z.object({
   // "provider/model" 或仅 "model"（provider 缺省时沿用 DSH 默认模型的 provider）；
   // 留空 = 使用 DSH 设置的默认模型。
-  model: z.string().default(""),
+  model: z.string().volatile().default(""),
   // 桥接 Bearer token；留空 = 环境变量 OPENCLAW_BRIDGE_TOKEN 或
   // ~/.dsh/openclaw-bridge/token.txt 自动生成值。
-  token: z.string().default(""),
+  token: z.string().volatile().default(""),
   // 微信会话的工作目录（绝对路径）；留空 = 使用隔离的桥接工作区。
   // 远程办公时把它指到你的真实项目目录（如 C:\Users\you\Desktop\work）。
-  workspace: z.string().default(""),
+  workspace: z.string().volatile().default(""),
   // 微信用户白名单（逗号分隔的 from_user_id，形如 xxx@im.wechat）；
   // 留空 = 允许所有给你发消息的人驱动 agent。
-  allowlist: z.string().default(""),
+  allowlist: z.string().volatile().default(""),
   // 第三方 OpenAI 兼容端点（别家公司的模型）。customBaseURL 非空时，
   // 接收模型改走通用适配器（provider "openclaw-custom"，需 customModel）。
-  customBaseURL: z.string().default(""),
-  customApiKey: z.string().default(""),
-  customModel: z.string().default(""),
+  customBaseURL: z.string().volatile().default(""),
+  customApiKey: z.string().volatile().default(""),
+  customModel: z.string().volatile().default(""),
   // ---- IM 桥接（SPEC §8：微信 + 飞书双通道；QQ 由官方 @tencent-connect/dsh-qqbot 独立提供）----
   // 渠道开关："1" = 开，"0" = 关；微信/飞书留空 = 默认开（保持旧行为 + 配置迁移语义）。
-  enableWechat: z.string().default(""),
-  enableFeishu: z.string().default(""),
+  enableWechat: z.string().volatile().default(""),
+  enableFeishu: z.string().volatile().default(""),
   // 每渠道白名单（逗号分隔 id）；微信兼容旧字段 allowlist（whitelistWechat 优先）。
-  whitelistWechat: z.string().default(""),
-  whitelistFeishu: z.string().default(""),
+  whitelistWechat: z.string().volatile().default(""),
+  whitelistFeishu: z.string().volatile().default(""),
   // 飞书企业自建应用（P1）：AppID / App Secret / Encrypt Key（后两者不回显）。
-  feishuAppId: z.string().default(""),
-  feishuAppSecret: z.string().default(""),
-  feishuEncryptKey: z.string().default(""),
+  feishuAppId: z.string().volatile().default(""),
+  feishuAppSecret: z.string().volatile().default(""),
+  feishuEncryptKey: z.string().volatile().default(""),
   // 群聊回复署名 [群友 用户名]（A-03 默认开）。
-  groupSignature: z.string().default("1"),
+  groupSignature: z.string().volatile().default("1"),
   // agent 池上限（A-02：默认 16，可调大；池满按 LRU 淘汰空闲）。
-  maxAgents: z.string().default(""),
+  maxAgents: z.string().volatile().default(""),
   // 严格鉴权："1" = 回环地址也要求 Token（默认 "" = 回环免 Token，保持旧兼容）。
-  authAlways: z.string().default(""),
+  authAlways: z.string().volatile().default(""),
 });
 let liveConfig = () => ({}); // 取配置的 getter；setSource 会被替换为 settings scope 读取器
 
@@ -824,10 +860,10 @@ function apply(ctx, config) {
   try {
     let scope;
     try {
-      scope = ctx.settings.register(NS, Config, { base: config || {} });
+      scope = mountSettingsScope(ctx, config, "openclaw-bridge");
     } catch (baseError) {
       console.warn("[openclaw-bridge] stored config rejected, retrying with defaults: " + ((baseError && baseError.message) || baseError));
-      scope = ctx.settings.register(NS, Config, { base: {} });
+      scope = mountSettingsScope(ctx, config, "openclaw-bridge");
     }
     liveConfig = () => scope.get(); // source 是 () => scope.get() 的取值函数
     scope.watch(() => {

@@ -94,6 +94,35 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
 10. **`dsh.client.platform` 保持字符串 `"web"`。** 别「顺手」改成 `"desktop"`——
     `parseDshClient` 只检查它是字符串、从不校验取值，而 desktop profile 服务的正是同一份
     web client bundle。改了会静默坏掉。
+11. **设置没有「注册」这一步，只有声明式 `Config`。** 内核 `SettingsForms`
+    （`@deepseek-ai/dsh-settings`）只有
+    `describe / update / configure / schema / prepareDocument / mutate / replace`，
+    **没有 `register`，也没有 `get`**；页内也**没有** `ctx.settingsScope` 这个服务
+    （三者全内核 0 处命中）。正确形状：
+    - 宿主 `export const Config = z.object({...})`（`z` 必须是
+      **`@deepseek-ai/schemastery`** —— `.volatile()` 是这个 fork 的扩展，
+      裸包 `schemastery` 上没有，用了会在 import 期抛
+      `z.boolean(...).volatile is not a function`）；
+    - 需要被设置页读写，就**至少一个字段标 `.volatile()`** ——
+      `describe()` 只收录 `volatileForm(schema)` 非空的条目，`update` 也拒非 volatile 路径；
+    - 读自己的配置用 `apply(ctx, config)` 的第二参（`resolveConfig()` 校验过的），
+      读别的条目用 `settings.describe()` 找 `row.value`；写回用
+      `settings.update(ns, patch, revision)`；
+    - 页内读写用 `ctx.remote.settings.describe()` / `.mutate(ns, [{op:'set',path:[f],value}], rev)`，
+      `describe()` 返回 `{ writable, hasDocument, namespaces: [view] }`；
+    - ⚠ **`ns` 一律是 profile 条目 id**（`cordis.patch.yml` 的 `- id:`，如 `conversation-tweaks`、
+      `better-sidebar`），**不是 npm 包名**。写成包名不报错，只是 `find()` 永不命中 ⇒ 设置静默失效。
+    - 内核对「设置已变」没有桥接给页内的事件（只有 `settings/conflict`、`settings/rejected`），
+      所以页内实时性只能做到「挂载取一次 + 自己写完重取」，别假装有推送。
+    `tools/audit/settings-api.js` 按内核服务清单正向核对（快照见
+    `tools/audit/kernel-services.json`，由 `extract-kernel-services.mjs` 生成），
+    拦幽灵服务名与幽灵方法名。
+12. **静态门禁证明不了激活。** `--dump-config` 只证明**组合**（条目拼对了）。
+    apply 里抛错、`volatile` 用错包、服务名写错这类问题，dump 全绿而用户看到
+    「N entries did not activate」。**发布前必须真跑一次**
+    `node tools/itest/boot-activation.mjs`（J4：把 profile 复制到临时 DSH_HOME、
+    用工作区源码覆盖进去、真挂载，要求零未激活 + 零被吞掉的降级日志 + 零 duplicate route，
+    失败时会连内核的 startup 诊断一起打出来）。
 
 ## 命名规则
 

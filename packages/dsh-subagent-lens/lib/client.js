@@ -74,6 +74,72 @@ window.__ModuleLoader__.load({
     // 常量与文案
     // ---------------------------------------------------------------------------
     const NS = "dsh-subagent-lens";
+    const SETTINGS_ENTRY_ID = "dsh-subagent-lens";
+
+// settings.describe()/mutate 的 ns 是 **profile 条目 id**，不是包名也不是旧 NS。
+// // <<BEGIN settings-scope（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
+function bindSettingsScope(ctx, entryId) {
+	let snapshot = { status: "loading", value: undefined, writable: false, revision: undefined };
+	const listeners = /* @__PURE__ */ new Set();
+	const emit = () => { for (const fn of [...listeners]) fn(); };
+	// 快照引用必须稳定：selector 走 Object.is 比较，每轮都换新对象会自激重渲染。
+	const adopt = (next) => {
+		if (next.status === snapshot.status && next.writable === snapshot.writable
+			&& JSON.stringify(next.value) === JSON.stringify(snapshot.value)) return;
+		snapshot = next;
+		emit();
+	};
+	async function refresh() {
+		let response;
+		try {
+			response = await ctx.remote.settings.describe();
+		} catch (error) {
+			adopt({ ...snapshot, status: "failed" });
+			return;
+		}
+		if (!response || !response.ok) {
+			adopt({ ...snapshot, status: "failed" });
+			return;
+		}
+		const rows = response.value && Array.isArray(response.value.namespaces) ? response.value.namespaces : [];
+		const view = rows.find((row) => row.ns === entryId);
+		if (view === undefined) {
+			// 条目不在 describe() 里 = 它的 Config 没有任何 volatile 字段，
+			// 内核就不为它生成表单（volatileForm(schema) 为空即跳过）。
+			adopt({ ...snapshot, status: "missing" });
+			return;
+		}
+		adopt({
+			status: "ready",
+			value: view.value,
+			writable: response.value.writable !== false,
+			revision: view.revision
+		});
+	}
+	void refresh();
+	return {
+		getSnapshot: () => snapshot,
+		subscribe(fn) {
+			listeners.add(fn);
+			return () => { listeners.delete(fn); };
+		},
+		// 旧 API 的 watch(cb) 与 subscribe(cb) 同义，保留名字免得调用方各写一套。
+		watch(fn) {
+			return this.subscribe(fn);
+		},
+		async set(field, value) {
+			const next = await ctx.remote.settings.mutate(entryId, [{ op: "set", path: [field], value }], snapshot.revision);
+			if (next && next.ok && next.value) {
+				adopt({ ...snapshot, value: next.value.value, revision: next.value.revision });
+				return;
+			}
+			await refresh();
+			if (!next || !next.ok) throw new Error(next && next.error && next.error.message || "settings write rejected");
+		},
+		refresh
+	};
+}
+// <<END settings-scope>>
     const DEFAULT_TOOL_NAMES = ["subagent", "subagent_fork", "Task", "task"];
     const DEFAULT_MAX_ITEMS = 50;
     const DEFAULT_COMMAND_CHARS = 400;
@@ -1006,8 +1072,8 @@ window.__ModuleLoader__.load({
       let scope = undefined;
       let useScope = undefined;
       try {
-        if (ctx.settingsScope && typeof ctx.settingsScope.bind === "function") {
-          scope = ctx.settingsScope.bind({ namespace: NS });
+        if (ctx.remote && ctx.remote.settings) {
+          scope = bindSettingsScope(ctx, SETTINGS_ENTRY_ID);
           useScope = bindSnapshotSelector(scope);
         }
       } catch { scope = undefined; useScope = undefined; }
@@ -1078,7 +1144,7 @@ window.__ModuleLoader__.load({
     // 导出（apply/inject + 全部纯函数，供 vm 沙箱单测消费）
     // ---------------------------------------------------------------------------
     exports.apply = apply;
-    exports.inject = ["slots", "settingsScope", "sessions"];
+    exports.inject = ["slots", "remote", "sessions"];
     exports.DEFAULT_TOOL_NAMES = DEFAULT_TOOL_NAMES;
     exports.classifyActivityTool = classifyActivityTool;
     exports.pickPath = pickPath;

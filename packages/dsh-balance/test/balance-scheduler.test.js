@@ -255,22 +255,42 @@ test("pendingPayload：未刷新过时字段集合与正常路径同构", () => 
   assert.equal(p.periodTables[p.pricingTier], p.priceTable, "空载荷也守身份不变量");
 });
 
+/** 造一个只实现真实 API 的 settings 服务桩（describe 返回行数组）。 */
+const settingsStub = (rows, opts = {}) => ({
+  describe: () => {
+    if (opts.throwOnDescribe) throw new Error("nope");
+    return rows;
+  },
+});
+
 test("readSettings：无 settings 服务 / 未注册命名空间一律按默认（不隐藏 dock）", () => {
   assert.deepEqual(host.readSettings({}), {});
-  assert.deepEqual(host.readSettings({ settings: { get: () => { throw new Error("nope"); } } }), {});
-  assert.deepEqual(host.readSettings({ settings: { get: () => undefined } }), {});
+  assert.deepEqual(host.readSettings({ settings: settingsStub([], { throwOnDescribe: true }) }), {});
+  assert.deepEqual(host.readSettings({ settings: settingsStub([]) }), {});
   assert.deepEqual(
-    host.readSettings({ settings: { get: (ns) => (ns === "balance" ? { showBalanceDock: false, prices: { "deepseek-v4-pro": { cacheMiss: 1 } } } : undefined) } }),
+    host.readSettings({ settings: settingsStub([{ ns: "balance", value: { showBalanceDock: false, prices: { "deepseek-v4-pro": { cacheMiss: 1 } } } }]) }),
     { showBalanceDock: false, balancePrices: { "deepseek-v4-pro": { cacheMiss: 1 } } },
   );
+  // 反证：只实现**不存在的** get() 的服务桩必须读不到任何东西。
+  // 内核 SettingsForms 没有 get —— 若实现退回调 get，这条会静默返回 {}（就是迁移前的 bug 形态）。
+  assert.deepEqual(host.readSettings({ settings: { get: () => ({ showBalanceDock: false }) } }), {},
+    "不得依赖不存在的 settings.get");
 });
 
 test("makeActiveModelReader：agentDefaultModel 优先，settings 次之，抓取器兜底", () => {
   const read = host.makeActiveModelReader;
   assert.equal(read({ agentDefaultModel: { currentSelection: () => ({ provider: "deepseek", model: "deepseek-v4-flash" }) } })(), "deepseek-v4-flash");
-  assert.equal(read({ agentDefaultModel: { currentSelection: () => { throw new Error("not ready"); } }, settings: { get: (ns) => (ns === "agent-default-model" ? { model: "deepseek-chat" } : undefined) } })(), "deepseek-chat");
+  assert.equal(read({ agentDefaultModel: { currentSelection: () => { throw new Error("not ready"); } }, settings: settingsStub([{ ns: "agent-default-model", value: { model: "deepseek-chat" } }]) })(), "deepseek-chat");
   assert.equal(read({ agentDefaultModel: { currentSelection: () => ({ model: "  " }) } })().toString().length >= 0, true, "空白模型名继续降级，不抛");
   assert.equal(typeof read({})(), "string", "全部服务缺席时落到抓取器（返回字符串，可能为空）");
+  // 反证：键不对时必须降级，而不是拿到脏值。
+  // （实现故意同时试 `agent-default-model` 与 `agentDefaultModel` 两种写法，
+  //  所以这里用的是两者都不是的包名形态 —— 它不该命中。）
+  assert.notEqual(
+    read({ settings: settingsStub([{ ns: "dsh-agent-default-model", value: { model: "wrong-key" } }]) })(),
+    "wrong-key",
+    "describe 的 ns 是 profile 条目 id，用包名当键不该命中",
+  );
 });
 
 test("readService：ctx.get 优先、属性访问兜底、抛错归 undefined", () => {

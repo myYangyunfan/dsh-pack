@@ -104,6 +104,72 @@
 			// Settings
 			// ------------------------------------------------------------------
 			const NS = "dsh-quest-ui";
+			const SETTINGS_ENTRY_ID = "quest-ui";
+
+// settings.describe()/mutate 的 ns 是 **profile 条目 id**，不是包名也不是旧 NS。
+// // <<BEGIN settings-scope（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
+function bindSettingsScope(ctx, entryId) {
+	let snapshot = { status: "loading", value: undefined, writable: false, revision: undefined };
+	const listeners = /* @__PURE__ */ new Set();
+	const emit = () => { for (const fn of [...listeners]) fn(); };
+	// 快照引用必须稳定：selector 走 Object.is 比较，每轮都换新对象会自激重渲染。
+	const adopt = (next) => {
+		if (next.status === snapshot.status && next.writable === snapshot.writable
+			&& JSON.stringify(next.value) === JSON.stringify(snapshot.value)) return;
+		snapshot = next;
+		emit();
+	};
+	async function refresh() {
+		let response;
+		try {
+			response = await ctx.remote.settings.describe();
+		} catch (error) {
+			adopt({ ...snapshot, status: "failed" });
+			return;
+		}
+		if (!response || !response.ok) {
+			adopt({ ...snapshot, status: "failed" });
+			return;
+		}
+		const rows = response.value && Array.isArray(response.value.namespaces) ? response.value.namespaces : [];
+		const view = rows.find((row) => row.ns === entryId);
+		if (view === undefined) {
+			// 条目不在 describe() 里 = 它的 Config 没有任何 volatile 字段，
+			// 内核就不为它生成表单（volatileForm(schema) 为空即跳过）。
+			adopt({ ...snapshot, status: "missing" });
+			return;
+		}
+		adopt({
+			status: "ready",
+			value: view.value,
+			writable: response.value.writable !== false,
+			revision: view.revision
+		});
+	}
+	void refresh();
+	return {
+		getSnapshot: () => snapshot,
+		subscribe(fn) {
+			listeners.add(fn);
+			return () => { listeners.delete(fn); };
+		},
+		// 旧 API 的 watch(cb) 与 subscribe(cb) 同义，保留名字免得调用方各写一套。
+		watch(fn) {
+			return this.subscribe(fn);
+		},
+		async set(field, value) {
+			const next = await ctx.remote.settings.mutate(entryId, [{ op: "set", path: [field], value }], snapshot.revision);
+			if (next && next.ok && next.value) {
+				adopt({ ...snapshot, value: next.value.value, revision: next.value.revision });
+				return;
+			}
+			await refresh();
+			if (!next || !next.ok) throw new Error(next && next.error && next.error.message || "settings write rejected");
+		},
+		refresh
+	};
+}
+// <<END settings-scope>>
 			const L = {
 				questTitle: "Quest 模式界面",
 				questDesc: "启用类 Quest 的沉浸式界面：分组会话栏与卡片式输入区。切换即时生效，默认关闭且关闭时零性能开销。",
@@ -532,7 +598,7 @@
 			function applyInner(ctx) {
 				ensureCss();
 
-				const scope = ctx.settingsScope.bind({ namespace: NS });
+				const scope = bindSettingsScope(ctx, SETTINGS_ENTRY_ID);
 				const useScope = bindSnapshotSelector(scope);
 
 				// 模式标志应用（整个插件的枢纽）：设置订阅回调里打/摘 body
@@ -577,7 +643,7 @@
 			}
 
 			exports.apply = apply;
-			exports.inject = ["slots", "settingsScope"];
+			exports.inject = ["slots", "remote"];
 			return module.exports;
 		}
 	});

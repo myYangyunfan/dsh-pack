@@ -101,7 +101,8 @@
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <2",
     "cordis": "^4.0.0-rc.8",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@deepseek-ai/schemastery": ">=0.1.0-rc.6 <2"
   },
   "peerDependenciesMeta": {
     "cordis": {
@@ -109,7 +110,6 @@
     }
   },
   "dependencies": {
-    "schemastery": "^3.18.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

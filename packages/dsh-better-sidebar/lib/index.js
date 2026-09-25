@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { mkdir, open, opendir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import z from "schemastery";
+import z from "@deepseek-ai/schemastery";
 import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { chmodSync, createWriteStream, existsSync, readFileSync, realpathSync } from "node:fs";
@@ -13,6 +13,42 @@ import { homedir, userInfo } from "node:os";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { snapshotSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
+
+// <<BEGIN settings-host（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
+const VOLATILE_WRITE = Symbol.for("cosmokit.volatile.write");
+
+/** 把 config 里的 volatile 引用摊平成普通值（同 dsh-settings 的 plainConfig）。 */
+function plainSettings(value) {
+	if (typeof value !== "object" || value === null) return value;
+	if (VOLATILE_WRITE in value) return plainSettings(typeof value.get === "function" ? value.get() : undefined);
+	if (Array.isArray(value)) return value.map(plainSettings);
+	return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, plainSettings(child)]));
+}
+
+/**
+ * 用声明式 Config 顶掉不存在的 ctx.settings.register。
+ * @param ctx - 本插件作用域
+ * @param entryConfig - apply 第二参（resolveConfig 校验过的 profile 行 config）
+ * @param entryId - **profile 条目 id**，即 settings/document-updated 回传的 ns
+ * @returns 与旧 scope 同名的 { get(), watch(fn) }，调用方不必改形状
+ */
+function mountSettingsScope(ctx, entryConfig, entryId) {
+	const state = { current: plainSettings(entryConfig) || {} };
+	const listeners = /* @__PURE__ */ new Set();
+	ctx.on("settings/document-updated", (ns) => {
+		if (ns !== entryId) return;
+		state.current = plainSettings(entryConfig) || {};
+		for (const fn of [...listeners]) fn(state.current);
+	});
+	return {
+		get: () => state.current,
+		watch(fn) {
+			listeners.add(fn);
+			return () => { listeners.delete(fn); };
+		}
+	};
+}
+// <<END settings-host>>
 //#region src/prefs-shared.ts
 /**
 * Shared "Side card" preference vocabulary (types + constants), consumed by
@@ -22,7 +58,9 @@ import { snapshotSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
 * the browser bundle never pulls the schema runtime in.
 */
 /** The user-settings namespace holding the side card preferences. */
-const SIDEBAR_PREFS_NS = "dsh-better-sidebar";
+// settings.describe()/update() 的 ns 是 **profile 条目 id**（cordis.patch.yml 的 `- id: better-sidebar`），
+// 不是 npm 包名。写成 "dsh-better-sidebar" 时 find 永不命中 ⇒ 偏好静默为 undefined。
+const SIDEBAR_PREFS_NS = "better-sidebar";
 //#endregion
 //#region src/config.ts
 /**
@@ -33,6 +71,42 @@ const SIDEBAR_PREFS_NS = "dsh-better-sidebar";
 */
 /** Schemastery schema for the plugin configuration. */
 const Config = z.object({
+	// ---- 界面偏好（原 PrefsSchema 已并入：只有导出的 Config 会被 resolveConfig 校验、
+	//      被 settings.describe() 收录；字段必须 volatile，否则既进不了设置页也写不回）----
+	openByDefault: z.boolean().volatile().default(false),
+	defaultWidthPercent: z.number().step(1).min(20).max(60).volatile().default(35),
+	autoOpenSubagent: z.boolean().volatile().default(true),
+	autoOpenJobs: z.boolean().volatile().default(true),
+	agentTerminalTools: z.boolean().volatile().default(false),
+	bottomPanelAutoTerminal: z.boolean().volatile().default(true),
+	terminalFontFamily: z.string().volatile().default(""),
+	terminalFontSize: z.number().step(1).min(9).max(32).volatile().default(13),
+	interceptOpenPath: z.boolean().volatile().default(true),
+	editorExplorer: z.boolean().volatile().default(true),
+	terminalShell: z.string().volatile().default(""),
+	terminalShellArgs: z.string().volatile().default(""),
+	titleBarScheme: z.union([
+		z.const("auto"),
+		z.const("web"),
+		z.const("preset"),
+		z.const("custom")
+	]),
+	titleBarPresetId: z.string(),
+	customCss: z.string(),
+	titleBarCompat: z.boolean().volatile().default(false),
+	titleBarStripPx: z.number().step(1).min(0).max(120).volatile().default(40),
+	htmlViewerNoSandbox: z.boolean().volatile().default(false),
+	htmlViewerDefaultUnsafe: z.boolean().volatile().default(false),
+	browserNoSandbox: z.boolean().volatile().default(false),
+	browserInterceptLinks: z.boolean().volatile().default(true),
+	browserInterceptHttp: z.boolean().volatile().default(true),
+	browserInterceptHttps: z.boolean().volatile().default(false),
+	tabsEnabled: z.dict(z.boolean()).volatile().default({}),
+	viewersEnabled: z.dict(z.boolean()).volatile().default({}),
+	pluginSettings: z.dict(z.dict(z.any())).volatile().default({}),
+	kernelRightbar: z.union([z.const("auto"), z.const("legacy")]).volatile().default("auto"),
+	kernelRightbarAutoOpen: z.boolean().volatile().default(true),
+	// ---- 运行期限额（原 Config 字段）----
 	readLimit: z.number().step(1).min(1).default(524288),
 	mediaLimit: z.number().step(1).min(1).default(20971520),
 	uploadLimit: z.number().step(1).min(1).default(134217728),
@@ -42,6 +116,8 @@ const Config = z.object({
 	shell: z.string().default(""),
 	shellArgs: z.array(z.string()).default([])
 });
+// 旧引用名保留为别名；偏好与运行期参数现在是同一份声明式 Config。
+const PrefsSchema = Config;
 /**
 * Apply direct-call defaults after Loader schema validation has normally run.
 *
@@ -61,41 +137,6 @@ function resolveSidebarConfig(config) {
 	};
 }
 /** Schemastery schema for the user-facing preferences (validated by the settings service). */
-const PrefsSchema = z.object({
-	openByDefault: z.boolean().default(false),
-	defaultWidthPercent: z.number().step(1).min(20).max(60).default(35),
-	autoOpenSubagent: z.boolean().default(true),
-	autoOpenJobs: z.boolean().default(true),
-	agentTerminalTools: z.boolean().default(false),
-	bottomPanelAutoTerminal: z.boolean().default(true),
-	terminalFontFamily: z.string().default(""),
-	terminalFontSize: z.number().step(1).min(9).max(32).default(13),
-	interceptOpenPath: z.boolean().default(true),
-	editorExplorer: z.boolean().default(true),
-	terminalShell: z.string().default(""),
-	terminalShellArgs: z.string().default(""),
-	titleBarScheme: z.union([
-		z.const("auto"),
-		z.const("web"),
-		z.const("preset"),
-		z.const("custom")
-	]),
-	titleBarPresetId: z.string(),
-	customCss: z.string(),
-	titleBarCompat: z.boolean().default(false),
-	titleBarStripPx: z.number().step(1).min(0).max(120).default(40),
-	htmlViewerNoSandbox: z.boolean().default(false),
-	htmlViewerDefaultUnsafe: z.boolean().default(false),
-	browserNoSandbox: z.boolean().default(false),
-	browserInterceptLinks: z.boolean().default(true),
-	browserInterceptHttp: z.boolean().default(true),
-	browserInterceptHttps: z.boolean().default(false),
-	tabsEnabled: z.dict(z.boolean()).default({}),
-	viewersEnabled: z.dict(z.boolean()).default({}),
-	pluginSettings: z.dict(z.dict(z.any())).default({}),
-	kernelRightbar: z.union([z.const("auto"), z.const("legacy")]).default("auto"),
-	kernelRightbarAutoOpen: z.boolean().default(true)
-});
 //#endregion
 //#region src/wire.ts
 /** One API failure with its wire code and HTTP status. */
@@ -3560,7 +3601,7 @@ function apply(ctx, config) {
 	};
 	ctx.inject(["settings"], (sctx) => {
 		const ns = SIDEBAR_PREFS_NS;
-		const scope = sctx.settings.register(ns, PrefsSchema);
+		const scope = mountSettingsScope(sctx, config, "better-sidebar");
 		const viewOf = () => {
 			const descriptor = sctx.settings.describe({ redactSecrets: true }).find((candidate) => candidate.ns === ns);
 			return descriptor === void 0 ? {

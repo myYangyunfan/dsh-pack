@@ -31,6 +31,42 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import z from '@deepseek-ai/schemastery';
 
 import { visionChat } from './vlm.js';
+
+// <<BEGIN settings-host（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
+const VOLATILE_WRITE = Symbol.for("cosmokit.volatile.write");
+
+/** 把 config 里的 volatile 引用摊平成普通值（同 dsh-settings 的 plainConfig）。 */
+function plainSettings(value) {
+	if (typeof value !== "object" || value === null) return value;
+	if (VOLATILE_WRITE in value) return plainSettings(typeof value.get === "function" ? value.get() : undefined);
+	if (Array.isArray(value)) return value.map(plainSettings);
+	return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, plainSettings(child)]));
+}
+
+/**
+ * 用声明式 Config 顶掉不存在的 ctx.settings.register。
+ * @param ctx - 本插件作用域
+ * @param entryConfig - apply 第二参（resolveConfig 校验过的 profile 行 config）
+ * @param entryId - **profile 条目 id**，即 settings/document-updated 回传的 ns
+ * @returns 与旧 scope 同名的 { get(), watch(fn) }，调用方不必改形状
+ */
+function mountSettingsScope(ctx, entryConfig, entryId) {
+	const state = { current: plainSettings(entryConfig) || {} };
+	const listeners = /* @__PURE__ */ new Set();
+	ctx.on("settings/document-updated", (ns) => {
+		if (ns !== entryId) return;
+		state.current = plainSettings(entryConfig) || {};
+		for (const fn of [...listeners]) fn(state.current);
+	});
+	return {
+		get: () => state.current,
+		watch(fn) {
+			listeners.add(fn);
+			return () => { listeners.delete(fn); };
+		}
+	};
+}
+// <<END settings-host>>
 export const name = 'dsh-vision';
 export const inject = ['tools', 'systemPrompt', 'settings', 'llm', 'attachments'];
 const DEFAULT_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
@@ -56,19 +92,19 @@ const LEGACY_1K_CAP_MODELS = new Set(['glm-4v-flash', 'glm-4.1v-thinking-flash']
  */
 const MAX_TOKENS_REJECTED = /returned 400/;
 export const Config = z.object({
-    enabled: z.boolean().default(false)
+    enabled: z.boolean().volatile().default(false)
         .description('Master switch (default OFF) — false disables image admission, automatic attach-image recognition, the view_image tool, and the prompt section (natively multimodal models are untouched); turn it on in Settings → 识图插件（view_image）'),
-    baseURL: z.string().default(DEFAULT_BASE_URL)
+    baseURL: z.string().volatile().default(DEFAULT_BASE_URL)
         .description('OpenAI-compatible endpoint base URL (…/chat/completions is appended)'),
-    apiKey: z.string().role('secret').default('')
+    apiKey: z.string().role('secret').volatile().default('')
         .description('API key; falls back to $DSH_VISION_API_KEY, then $ZHIPUAI_API_KEY / $DASHSCOPE_API_KEY'),
-    model: z.string().default('glm-4.6v-flash')
+    model: z.string().volatile().default('glm-4.6v-flash')
         .description('Vision model id at the endpoint, e.g. glm-4.6v-flash (free) / glm-4.6v / qwen3-vl-flash / qwen3.7-plus / qwen3-vl:4b'),
-    fallbackModels: z.array(z.string()).default([])
+    fallbackModels: z.array(z.string()).volatile().default([])
         .description('Models tried in order when the primary returns 429/404/5xx; defaults to Zhipu free-tier chain when baseURL is the default'),
-    maxTokens: z.number().step(1).min(1).max(32_768).default(2048),
-    timeoutMs: z.number().step(1).min(1_000).max(300_000).default(60_000),
-    maxImageBytes: z.number().step(1).min(1).default(10 * 1024 * 1024),
+    maxTokens: z.number().step(1).min(1).max(32_768).volatile().default(2048),
+    timeoutMs: z.number().step(1).min(1_000).max(300_000).volatile().default(60_000),
+    maxImageBytes: z.number().step(1).min(1).volatile().default(10 * 1024 * 1024),
 });
 const NS = 'dsh-vision';
 // 配置的 getter；setSource 会被替换为 settings scope 读取器（热生效）。
@@ -375,7 +411,7 @@ export function apply(ctx, config) {
     // try/catch：存储的 dsh-vision 配置节非法会让 register() 抛异常 → 插件
     // fiber 失败 → dsh fail-loud 启动崩溃。降级为组合配置继续运行（不阻断启动）。
     try {
-        const scope = ctx.settings.register(NS, Config, { base: config || {} });
+        const scope = mountSettingsScope(ctx, config, "dsh-vision");
         liveConfig = () => scope.get();
         scope.watch(() => {
             const cfg = liveConfig() || {};

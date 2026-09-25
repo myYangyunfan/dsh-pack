@@ -267,16 +267,11 @@ export const __test = { findTurnEndBefore, resolveBoundary, writeLog, flushLogBu
 
 export function apply(ctx) {
   writeLog('info', 'host', 'apply: 路由注册开始');
-  try {
-    if (ctx.settings && typeof ctx.settings.register === 'function') {
-      const dummySchema = (x) => x ?? {};
-      dummySchema.toJSON = () => ({ type: 'object' });
-      ctx.settings.register(settingsNamespace('dsh-easyrewrite'), dummySchema);
-      writeLog('info', 'host', 'settings namespace 已注册（插件配置卡片可用）');
-    }
-  } catch (err) {
-    writeLog('warn', 'host', 'settings namespace 注册失败（不影响核心功能）', { err: String(err?.message ?? err) });
-  }
+  // 这里原先用 `typeof ctx.settings.register === 'function'` 守卫着调一个内核根本
+  // 不存在的 API（SettingsForms 没有 register），所以那个 if 恒假、整段是死代码：
+  // 既没注册上任何东西，也不报错——正是最难查的静默失效。
+  // 本插件没有任何需要持久化的设置项（dummySchema 只是为了让设置页出现一张空卡片），
+  // 要真出现设置项，按声明式导出带 .volatile() 字段的 Config 即可。
   const disposers = [];
   // client 日志上报路由（统一甄别，落盘 $DSH_HOME/dsh-easyrewrite.log）
   disposers.push(ctx.webServer.register({

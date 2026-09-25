@@ -126,10 +126,32 @@ function resolveHome() {
 }
 
 /**
+ * 读某个 profile 条目的生效配置。
+ *
+ * ⚠ `settings.get(ns)` 这个 API 在内核里**不存在**（SettingsForms 只有
+ * describe/update/configure/schema/prepareDocument/mutate/replace）。原先两处都调它，
+ * 外面还套了 `typeof settings.get === "function"` 守卫 —— 守卫恒假 ⇒ 整段静默跳过，
+ * dock 开关与「从设置里读默认模型」从来没生效过，也不报错。
+ * 真实读法是 `describe()` 返回的按条目 id 索引的行；注意 ns 是 **profile 条目 id**
+ * （cordis.patch.yml 的 `- id:`），不是包名。
+ */
+function settingsSection(settings, ns) {
+  if (!settings || typeof settings.describe !== "function") return undefined;
+  let rows;
+  try {
+    rows = settings.describe({ redactSecrets: true });
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(rows)) return undefined;
+  const row = rows.find((candidate) => candidate && candidate.ns === ns);
+  return row === undefined ? undefined : row.value;
+}
+
+/**
  * 宿主设置读取。自制壳的 settings.json（showBalanceDock / showOpenCodeGoUsage /
- * balancePrices）在插件包形态下迁到内核 settings 的 balance 命名空间；该命名
- * 空间未必被注册（未注册时 ctx.settings.get 返回 undefined），故只认
- * 「读得到就用、读不到按默认」，绝不因设置缺失而隐藏 dock。
+ * balancePrices）在插件包形态下迁到本条目的 `config:` 块；该块未必被配置
+ * （未配置时按默认走），故只认「读得到就用、读不到按默认」，绝不因设置缺失而隐藏 dock。
  */
 function readSettings(ctx) {
   let settings;
@@ -138,15 +160,9 @@ function readSettings(ctx) {
   } catch {
     settings = undefined;
   }
-  if (!settings || typeof settings.get !== "function") return {};
   const out = {};
   for (const ns of ["balance", "dsh-balance"]) {
-    let section;
-    try {
-      section = settings.get(ns);
-    } catch {
-      section = undefined;
-    }
+    const section = settingsSection(settings, ns);
     if (!section || typeof section !== "object") continue;
     if (typeof section.showBalanceDock === "boolean") out.showBalanceDock = section.showBalanceDock;
     if (typeof section.showOpenCodeGoUsage === "boolean") out.showOpenCodeGoUsage = section.showOpenCodeGoUsage;
@@ -174,12 +190,10 @@ function makeActiveModelReader(ctx) {
     } catch { /* 取模型失败绝不能中断一轮刷新，逐级降级 */ }
     try {
       const settings = readService(ctx, "settings");
-      if (settings && typeof settings.get === "function") {
-        for (const ns of ["agent-default-model", "agentDefaultModel"]) {
-          const section = settings.get(ns);
-          const model = section && typeof section.model === "string" ? section.model.trim() : "";
-          if (model) return model;
-        }
+      for (const ns of ["agent-default-model", "agentDefaultModel"]) {
+        const section = settingsSection(settings, ns);
+        const model = section && typeof section.model === "string" ? section.model.trim() : "";
+        if (model) return model;
       }
     } catch { /* 同上 */ }
     return readActiveModel(resolveHome());

@@ -22,6 +22,7 @@ const CHECKS = [
   { name: 'namespace', module: './namespace' },
   { name: 'self-mount', module: './self-mount' },
   { name: 'dep-closure', module: './dep-closure' },
+  { name: 'settings-api', module: './settings-api' },
   { name: 'publish-readiness', module: './publish-readiness' },
   { name: 'syntax', module: './syntax' },
 ];
