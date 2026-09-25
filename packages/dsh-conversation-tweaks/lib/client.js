@@ -295,7 +295,7 @@ window.__ModuleLoader__.load({
 		}
 
 		exports.apply = apply;
-		exports.inject = ["slots", "remote"];
+		exports.inject = ["slots", "remote", "remote.settings"];
 		return module.exports;
 	}
 });

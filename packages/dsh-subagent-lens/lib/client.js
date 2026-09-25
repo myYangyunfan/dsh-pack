@@ -1144,7 +1144,7 @@ function bindSettingsScope(ctx, entryId) {
     // 导出（apply/inject + 全部纯函数，供 vm 沙箱单测消费）
     // ---------------------------------------------------------------------------
     exports.apply = apply;
-    exports.inject = ["slots", "remote", "sessions"];
+    exports.inject = ["slots", "remote", "remote.settings", "sessions"];
     exports.DEFAULT_TOOL_NAMES = DEFAULT_TOOL_NAMES;
     exports.classifyActivityTool = classifyActivityTool;
     exports.pickPath = pickPath;

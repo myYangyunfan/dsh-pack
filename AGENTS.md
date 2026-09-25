@@ -110,6 +110,10 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
       `settings.update(ns, patch, revision)`；
     - 页内读写用 `ctx.remote.settings.describe()` / `.mutate(ns, [{op:'set',path:[f],value}], rev)`，
       `describe()` 返回 `{ writable, hasDocument, namespaces: [view] }`；
+    - ⚠ **`inject` 里必须同时声明 `"remote"` 和 `"remote.settings"`**（官方 5 个用它的包
+      全都如此）。只声明 `"remote"` 时 `ctx.remote.settings` 拿到的是一个**永不 settle 的代理**：
+      既不返回也不抛错、控制台干净，界面表现为「开关永久禁用」—— 本仓库为此查了数小时。
+      `settings-api.js` 第 ④ 条判据拦这个。
     - ⚠ **`ns` 一律是 profile 条目 id**（`cordis.patch.yml` 的 `- id:`，如 `conversation-tweaks`、
       `better-sidebar`），**不是 npm 包名**。写成包名不报错，只是 `find()` 永不命中 ⇒ 设置静默失效。
     - 内核对「设置已变」没有桥接给页内的事件（只有 `settings/conflict`、`settings/rejected`），

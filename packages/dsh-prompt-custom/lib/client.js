@@ -306,7 +306,7 @@ function bindSettingsScope(ctx, entryId) {
 			}, PromptCustomCard), "dsh-prompt-custom: settings section entry");
 		}
 
-		const inject = ["slots", "remote"];
+		const inject = ["slots", "remote", "remote.settings"];
 		exports.apply = apply;
 		exports.inject = inject;
 		return module.exports;

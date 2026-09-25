@@ -643,7 +643,7 @@ function bindSettingsScope(ctx, entryId) {
 			}
 
 			exports.apply = apply;
-			exports.inject = ["slots", "remote"];
+			exports.inject = ["slots", "remote", "remote.settings"];
 			return module.exports;
 		}
 	});

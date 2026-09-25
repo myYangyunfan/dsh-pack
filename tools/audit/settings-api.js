@@ -110,8 +110,28 @@ function run(ctx = {}) {
         // 不加这个限定时一次报出 60+ 条误判。
         const isCordisModule = /\bexports\.apply\s*=|export function apply|export const apply|^function apply\(|\binject\s*=\s*\[/.test(code);
 
-        // ① 两级服务访问 ctx.<svc>.<member>() / ctx.get('<svc>').<member>()：
-        //    单级 `ctx.foo` 不查 —— 那既可能是 canvas 也可能是局部变量。
+        // ④ 页内调 ctx.remote.settings.* 就必须在 inject 里声明 "remote.settings"。
+        //    只声明 "remote" 不够：属性访问拿到的是一个**永不落定**的代理，
+        //    既不返回也不抛错 ⇒ 调用方永远停在 pending，界面表现为「开关永久禁用」，
+        //    控制台一行错误都没有。这条判据是本次实测换来的（官方 5 个用 remote.settings
+        //    的包全都同时声明了 "remote" 与 "remote.settings"）。
+        if (/\bctx\.remote\.settings\.[a-zA-Z]/.test(code)) {
+          const declares = /["']remote\.settings["']/.test(code);
+          if (!declares) {
+            findings.push(
+              finding(
+                CHECK,
+                'error',
+                '调用了 ctx.remote.settings.* 但 inject 里没声明 "remote.settings"：' +
+                  '只声明 "remote" 时该属性拿到的是永不 settle 的代理 —— 调用既不返回也不抛错，' +
+                  '表现为界面控件永久禁用且控制台无报错。必须 inject 里两个名字都在',
+                `${label} ${rel}`
+              )
+            );
+          }
+        }
+
+        // ⑤ 幽灵服务名（页内也一样）：ctx.<svc>.<member>()
         const accessed = new Map();
         if (isCordisModule) {
           for (const m of code.matchAll(/\bctx\.([a-zA-Z][A-Za-z0-9_]*)\.([a-zA-Z][A-Za-z0-9_]*)\s*\(/g)) {

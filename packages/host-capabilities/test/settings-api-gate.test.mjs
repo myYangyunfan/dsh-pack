@@ -107,6 +107,25 @@ test('反证：快照读不到时必须 fail-closed，不能静默通过', () =>
   assert.ok(findings.some((f) => f.severity === 'error' && /kernel-services/.test(f.message)));
 });
 
+test('调 ctx.remote.settings.* 但没声明 "remote.settings" ⇒ error（本次实测换来的判据）', () => {
+  // 只声明 "remote" 时该属性是个永不 settle 的代理：不返回、不抛错、控制台干净，
+  // 界面表现为「开关永久禁用」。这是本会话查得最久的一条根因。
+  const errs = errors(packWith('client.js', `
+    function apply(ctx) { ctx.remote.settings.describe(); }
+    exports.apply = apply;
+    exports.inject = ["slots", "remote"];
+  `));
+  assert.ok(errs.some((e) => /remote\.settings/.test(e.message)), '必须报缺声明');
+});
+
+test('反证：补上 "remote.settings" 声明后同一段代码必须转绿', () => {
+  assert.deepEqual(errors(packWith('client.js', `
+    function apply(ctx) { ctx.remote.settings.describe(); }
+    exports.apply = apply;
+    exports.inject = ["slots", "remote", "remote.settings"];
+  `)), []);
+});
+
 test('仓库现状：所有包都过这条门禁', () => {
   const errs = errors(undefined) || [];
   const all = gate.run({});

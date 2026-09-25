@@ -728,7 +728,7 @@ function bindSettingsScope(ctx, entryId) {
 			}, ClawBotCard), "dsh-openclaw-bridge: settings section entry");
 		}
 
-		const inject = ["slots", "remote"];
+		const inject = ["slots", "remote", "remote.settings"];
 		exports.apply = apply;
 		exports.inject = inject;
 		return module.exports;
