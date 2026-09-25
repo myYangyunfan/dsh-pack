@@ -1,0 +1,161 @@
+# ⚠️ 本文件由 tools/build-meta-patches.mjs 生成，请勿手改。
+# 改动的正确姿势：改 tools/tiers.json（层与成员）或改成员包自己的
+# cordis.patch.yml（行内容），然后跑 node tools/build-meta-patches.mjs 重新生成。
+#
+# 层：全量层（一次装齐）（meta-all / 发布名 @dsh-pack/all），成员 32 个。
+#
+# 为什么元包要自带这些行：docs/spike-official-client.md §0.3 实测——元包光靠
+# dependencies 是惰性的（传递依赖不会成为 bundle，row 也完全不组合，且用户无报错）。
+# 所以行的插入方必须是元包这一层；成员包同时保有自己的 cordis.patch.yml，
+# 这样单独 @dsh-pack/all 之外的任一成员也装得起来。
+#
+# 定序 / 去重：按 tools/tiers.json 的成员顺序，loader id 先到先得。
+# ⚠ patch 按 id 整行替换（无字段级 merge），所以每条行的 config 都是完整配置。
+- insert:
+    # ── dsh-balance ── DeepSeek 账户余额 + 本轮会话费用估算（对话统计栏 dock）
+    - id: balance
+      name: '@dsh-pack/dsh-balance'
+    # ── dsh-file-changes ── 会话文件更改投影（fileChanges）：为「文件」视图与回退提供数据
+    - id: file-changes
+      name: '@dsh-pack/dsh-file-changes'
+    # ── dsh-client-file-changes ── 「文件」视图：会话文件更改追踪 + 一键还原
+    - id: client-file-changes
+      name: '@dsh-pack/dsh-client-file-changes'
+    # ── dsh-file-drop ── 选中上传 + 拖入文件到对话，图片走内核官方附件管道
+    - id: file-drop
+      name: '@dsh-pack/dsh-file-drop'
+    # ── dsh-image-paste ── 粘贴图片自动落临时目录并把完整路径注入输入框
+    - id: image-paste
+      name: '@dsh-pack/dsh-image-paste'
+    # ── dsh-input-fold ── 超长用户提示词默认折叠为前几行，点击展开全文
+    - id: input-fold
+      name: '@dsh-pack/dsh-input-fold'
+    # ── dsh-input-history ── 终端式命令历史回溯：↑/↓ 翻阅本会话已发送消息
+    - id: input-history
+      name: '@dsh-pack/dsh-input-history'
+    # ── dsh-auto-compact ── 接近上下文上限时自动发送 /compact
+    - id: auto-compact
+      name: '@dsh-pack/dsh-auto-compact'
+    # ── dsh-change-review ── AI 变更审核：让模型复查自己刚做的改动
+    - id: change-review
+      name: '@dsh-pack/dsh-change-review'
+    # ── dsh-offpeak ── 峰谷价格卫士：高峰时段发送前拦截提醒，可定时到闲时价执行
+    - id: offpeak
+      name: '@dsh-pack/dsh-offpeak'
+      config:
+        # 峰谷定价生效日（北京时间）；此前插件休眠，不拦截不弹窗。
+        effectiveFrom: '2026-08-17'
+        # 调试开关：true 时忽略生效日期限制（便于验证），默认 false。
+        debug: false
+    # ── dsh-settings-nav-custom ── 设置页左侧导航显示/隐藏与排序
+    - id: settings-nav-custom
+      name: '@dsh-pack/dsh-settings-nav-custom'
+    # ── dsh-settings-groups ── 设置页低频选项折叠进「高级选项」组
+    - id: settings-groups
+      name: '@dsh-pack/dsh-settings-groups'
+    # ── dsh-conversation-tweaks ── 会话体验微调：隐藏长篇输出 + 右侧导航滑轨
+    - id: conversation-tweaks
+      name: '@dsh-pack/dsh-conversation-tweaks'
+    # ── dsh-quest-ui ── Quest 模式界面（分组会话栏 + 卡片式输入区），默认关闭
+    - id: quest-ui
+      name: '@dsh-pack/dsh-quest-ui'
+    # ── dsh-subagent-lens ── 子代理活动快视：Task/subagent 委派调用的展开式活动视图
+    - id: dsh-subagent-lens
+      name: '@dsh-pack/dsh-subagent-lens'
+    # ── dsh-easyrewrite ── 消息撤回与再编辑（上游 Renzic-Stone/DSH-EasyRewrite）
+    - id: dsh-easyrewrite
+      name: '@dsh-pack/dsh-easyrewrite'
+    # ── dsh-workspace-anchor ── 向稳定系统提示注入 {{cwd}} 偏好块，让 agent 默认落在会话工作区
+    - id: workspace-anchor
+      name: '@dsh-pack/dsh-workspace-anchor'
+    # ── dsh-prompt-custom ── 在设置页自定义官方内核注入的提示词
+    - id: prompt-custom
+      name: '@dsh-pack/dsh-prompt-custom'
+    # ── dsh-better-sidebar ── VSCode 式右侧栏工作台（文件 / 编辑器 / 终端 / git / 浏览器），按会话隔离
+    - id: better-sidebar
+      name: '@dsh-pack/dsh-better-sidebar'
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === '@dsh-pack/dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"
+    # ── dsh-basics-panel ── 设置页可视化管理 MCP 服务器 / 技能 / 规则
+    - id: basics-panel
+      name: '@dsh-pack/dsh-basics-panel'
+    # ── dsh-reasoning-effort ── Codex 风格「模型 + 推理强度」选择器
+    - id: reasoning-effort
+      name: '@dsh-pack/dsh-reasoning-effort'
+    # ── dsh-vision ── 识图：为纯文本模型提供 view_image 工具，走任意 OpenAI 兼容 VLM 端点
+    - id: dsh-vision
+      name: '@dsh-pack/dsh-vision'
+    # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
+    - id: synapse
+      name: '@dsh-pack/dsh-synapse'
+      config:
+        # A profile can override this path in its own cordis.patch.yml.
+        dataFile: !!js dshHomePath('synapse/workspaces.json')
+        autoProjection: true
+        projectionWorkspaceTitle: DSH 任务
+        # Extra authorities the /synapse Host check accepts (host or host:port);
+        # localhost and 127.0.0.1 are always allowed.
+        trustedHosts: []
+    # ── dsh-prompt-optimizer ── 输入框 prompt 一键润色为结构化高质量提示
+    - id: prompt-optimizer
+      name: '@dsh-pack/dsh-prompt-optimizer'
+    # ── dsh-zcode-migrate ── zcode CLI 历史会话 → dsh 原生会话日志迁移
+    - id: zcode-migrate
+      name: '@dsh-pack/dsh-zcode-migrate'
+      config:
+        # zcode CLI 的会话库（支持 ~ 家目录写法）。
+        dbPath: ~/.zcode/cli/db/db.sqlite
+        # dsh 的会话根目录。迁移产物写到这里，dsh 重启/刷新后即可在会话列表看到。
+        dshRoot: ~/.dsh/sessions
+        # 子代理会话数量通常是顶层会话的数倍；默认只迁移顶层会话。
+        includeSubagents: false
+        # 是否先用 SQLite 在线备份做一致性快照。默认 false：只读访问对 WAL 库
+        # 本身就是一致读；开启后会把整库复制到系统临时目录（可能上 GB），
+        # 并在结束时自动删除。
+        snapshot: false
+        # 恢复该会话时使用的 dsh agent preset（决定工具与提示词组合）。
+        agentPreset: standard
+        # 注册 /zcode 斜杠命令约定。
+        slashCommand: true
+    # ── dsh-community-market ── 可视化插件市场：开放目录源 + 搜索 + registry 校验安装
+    - id: community-market
+      name: '@dsh-pack/dsh-community-market'
+    # ── harness-pet ── 桌面小鲸鱼宠物
+    - id: harness-pet
+      name: '@dsh-pack/harness-pet'
+      disabled: true
+    # ── dsh-cardian ── 知识中心：RepoWiki / 知识卡片 / 记忆三区知识库
+    - id: cardian
+      name: '@dsh-pack/dsh-cardian'
+      disabled: true
+      config:
+        # Obsidian 仓库路径：知识卡片 / 记忆 / RepoWiki 都写入此目录。
+        # 可改为绝对路径，例如 !!js path.join(process.env.HOME, 'obsidian-vault')
+        vaultPath: ./cardian-vault
+        autoInit: false
+    # ── graph-memory ── 跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回
+    - id: graph-memory
+      name: '@dsh-pack/graph-memory/dsh'
+      disabled: true
+      config:
+        dbPath: !!js dshHomePath('graph-memory/graph-memory.db')
+        extractionEnabled: true
+        recallEnabled: true
+        recallMaxNodes: 6
+        recallMaxDepth: 2
+        maintenanceInterval: 6
+        # Secrets stay outside the bundle and repository. Set these variables
+        # in the environment that starts DSH to enable semantic vector recall.
+        embedding:
+          apiKeyEnv: !!js "process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ? 'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined"
+          baseURL: !!js process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL
+          model: !!js process.env.GRAPH_MEMORY_EMBEDDING_MODEL
+          dimensions: !!js "process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS ? Number(process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS) : undefined"
+    # ── dsh-pocket ── 手机扫码实时同屏操控桌面 web（WebSocket 透传 + cloudflared 隧道 + 二维码配对）
+    - id: dsh-pocket
+      name: '@dsh-pack/dsh-pocket'
+    # ── dsh-openclaw-bridge ── 微信 / 飞书官方频道桥接入 DSH agent 会话
+    - id: openclaw-bridge
+      name: '@dsh-pack/dsh-openclaw-bridge'
+    # ── billion-context-dsh ── Active Context Pruning：模型驱动的百万级上下文压缩后端
+    - id: compaction-acp
+      name: '@dsh-pack/billion-context-dsh'

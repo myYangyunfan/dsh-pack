@@ -1,0 +1,61 @@
+{
+  "name": "@dsh-pack/all",
+  "version": "0.1.0",
+  "description": "DSH Pack 全量层：一个输入装齐全部 32 个插件（core/plus/knowledge/pocket/bridge/compaction 并集）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "cordis.patch.yml",
+    "lib"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@dsh-pack/dsh-balance": "^0.1.1",
+    "@dsh-pack/dsh-file-changes": "^0.1.0",
+    "@dsh-pack/dsh-client-file-changes": "^0.1.0",
+    "@dsh-pack/dsh-file-drop": "^0.3.0",
+    "@dsh-pack/dsh-image-paste": "^0.1.0",
+    "@dsh-pack/dsh-input-fold": "^0.1.0",
+    "@dsh-pack/dsh-input-history": "^0.1.0",
+    "@dsh-pack/dsh-auto-compact": "^0.1.0",
+    "@dsh-pack/dsh-change-review": "^0.1.0",
+    "@dsh-pack/dsh-offpeak": "^1.0.0",
+    "@dsh-pack/dsh-settings-nav-custom": "^0.1.0",
+    "@dsh-pack/dsh-settings-groups": "^0.1.0",
+    "@dsh-pack/dsh-conversation-tweaks": "^0.1.0",
+    "@dsh-pack/dsh-quest-ui": "^0.6.0",
+    "@dsh-pack/dsh-subagent-lens": "^0.1.0",
+    "@dsh-pack/dsh-easyrewrite": "^2.5.2",
+    "@dsh-pack/dsh-workspace-anchor": "^0.1.0",
+    "@dsh-pack/dsh-prompt-custom": "^0.1.1",
+    "@dsh-pack/dsh-better-sidebar": "^0.15.3",
+    "@dsh-pack/dsh-basics-panel": "^0.1.0",
+    "@dsh-pack/dsh-reasoning-effort": "^0.7.0",
+    "@dsh-pack/dsh-vision": "^0.3.0",
+    "@dsh-pack/dsh-synapse": "^0.3.0",
+    "@dsh-pack/dsh-prompt-optimizer": "^2.0.3",
+    "@dsh-pack/dsh-zcode-migrate": "^0.1.1",
+    "@dsh-pack/dsh-community-market": "^0.1.1",
+    "@dsh-pack/harness-pet": "^0.2.0",
+    "@dsh-pack/dsh-cardian": "^0.14.0",
+    "@dsh-pack/graph-memory": "^1.6.0-beta.1",
+    "@dsh-pack/dsh-pocket": "^2.10.6",
+    "@dsh-pack/dsh-openclaw-bridge": "^0.8.0",
+    "@dsh-pack/billion-context-dsh": "^0.2.1"
+  }
+}
