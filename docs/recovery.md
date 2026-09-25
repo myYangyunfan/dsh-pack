@@ -59,8 +59,10 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 
 ## 「Allow these scripts and retry」是怎么来的
 
-pnpm 11 默认拦依赖的 install 脚本。`@dsh-pack/knowledge` 依赖的
-`@photostructure/sqlite` 带 `"install": "node-gyp-build"`，所以安装会失败并列出 `pendingBuilds`：
+pnpm 11 默认拦依赖的 install 脚本。会撞上它的有两个 node-gyp 原生可选依赖：
+`@photostructure/sqlite`（`@dsh-pack/knowledge` 里的 `graph-memory`）与
+`node-pty`（`@dsh-pack/plus` 里 `dsh-better-sidebar` 的终端标签）。所以装这两层时
+可能失败并列出 `pendingBuilds`：
 
 ```
 [ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @photostructure/sqlite@1.2.1
@@ -68,6 +70,10 @@ pnpm 11 默认拦依赖的 install 脚本。`@dsh-pack/knowledge` 依赖的
 
 在「设置 → 插件」页面点 **「Allow these scripts and retry」**；批准按包名持久化在
 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds` 里，之后不再询问。
+
+不点放行会怎样：`@photostructure/sqlite` 缺席则图谱记忆不可用；`node-pty` 缺席则终端标签
+不可用，但**不会崩** —— `dsh-better-sidebar` 的 `loadNodePty` 是懒加载且明确 never throws，
+缺席时走 `/sidebar/api/terminal.deps` 给出修复提示，其余功能照常。
 
 被拦下时 pnpm 会先在那个文件里写好一个**待你填空的占位条目**：
 
