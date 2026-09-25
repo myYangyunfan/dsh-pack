@@ -21,7 +21,7 @@
  * Hand-written ModuleLoader bundle — no build step required.
  */
 window.__ModuleLoader__.load({
-  id: "dsh-change-review",
+  id: "@dsh-pack/dsh-change-review",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;

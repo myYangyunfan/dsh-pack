@@ -428,7 +428,7 @@
 
   // ───────────────────────── 注册 ─────────────────────────
   window.__ModuleLoader__.load({
-    id: 'dsh-input-history',
+    id: '@dsh-pack/dsh-input-history',
     factory: function (require) {
       // RV4 A1：apply 使用 ctx.slots —— 必须在模块工厂的 inject 清单里声明
       // "slots"，否则模块系统代理抛 "cannot get property 'slots' without inject"。

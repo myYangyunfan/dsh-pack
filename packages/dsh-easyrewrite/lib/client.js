@@ -6,7 +6,7 @@
  * 改图标：替换 assets/edit.png、assets/recall.png → 执行 npm run build。
  */
 window.__ModuleLoader__.load({
-  id: "dsh-easyrewrite",
+  id: "@dsh-pack/dsh-easyrewrite",
   factory: function (require) {
     var React = require("react");
     var Primitives = require("@deepseek-ai/dsh-client-ui-primitives");

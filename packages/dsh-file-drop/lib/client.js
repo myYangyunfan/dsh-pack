@@ -1182,7 +1182,7 @@
 
   // ───────────────────────── 注册 ─────────────────────────
   window.__ModuleLoader__.load({
-    id: 'dsh-file-drop',
+    id: '@dsh-pack/dsh-file-drop',
     factory: function (require) {
       // RV4 A1：apply 使用 ctx.slots（📎 按钮注册）——必须在模块工厂的 inject
       // 清单里声明 "slots"，否则模块系统代理抛

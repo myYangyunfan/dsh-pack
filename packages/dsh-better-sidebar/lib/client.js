@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-better-sidebar",
+	id: "@dsh-pack/dsh-better-sidebar",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

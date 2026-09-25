@@ -3,7 +3,7 @@
 // 字段与宿主半边 Config 一一对应：baseURL / apiKey / model /
 // fallbackModels / maxTokens / timeoutMs / maxImageBytes。
 window.__ModuleLoader__.load({
-  id: "@dsh-external/dsh-vision",
+  id: "@dsh-pack/dsh-vision",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;

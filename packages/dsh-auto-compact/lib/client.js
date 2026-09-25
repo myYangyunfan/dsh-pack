@@ -18,7 +18,7 @@
  * Hand-written ModuleLoader bundle — no build step required.
  */
 window.__ModuleLoader__.load({
-  id: "dsh-auto-compact",
+  id: "@dsh-pack/dsh-auto-compact",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;

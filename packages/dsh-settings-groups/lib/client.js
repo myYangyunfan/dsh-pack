@@ -388,7 +388,7 @@
   // 与 dsh-settings-nav-custom / dsh-pet 同策略：inject ['slots'] 换取
   // apply 回调，DOM 工作全部自管。
   window.__ModuleLoader__.load({
-    id: 'dsh-settings-groups',
+    id: '@dsh-pack/dsh-settings-groups',
     factory: function (require) {
       function apply(ctx) {
         try { if (ctx && ctx.get) ctx.get('slots'); } catch (e) { /* 不需要 slots，仅借 apply 启动 */ }

@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-cardian",
+	id: "@dsh-pack/dsh-cardian",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

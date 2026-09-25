@@ -28,7 +28,7 @@
 // 保守原则：所有钩子/渲染/数据读取 try/catch 包裹，失败静默降级（绝不影响
 // 主 UI）；settings.describe 暴露开关（宿主半边 lib/index.js 注册命名空间）。
 window.__ModuleLoader__.load({
-  id: "@dsh-external/dsh-subagent-lens",
+  id: "@dsh-pack/dsh-subagent-lens",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;

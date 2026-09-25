@@ -15,7 +15,7 @@
  * - 分钟轮 00–59；小时栏仅 0–8、18–23 点，已过去的时间移除，23 之后滚动到次日 0–8。
  */
 window.__ModuleLoader__.load({
-  id: "dsh-offpeak",
+  id: "@dsh-pack/dsh-offpeak",
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;

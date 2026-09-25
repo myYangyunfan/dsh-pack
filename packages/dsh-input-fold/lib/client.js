@@ -292,7 +292,7 @@
 
   // ───────────────────────── 注册 ─────────────────────────
   window.__ModuleLoader__.load({
-    id: 'dsh-input-fold',
+    id: '@dsh-pack/dsh-input-fold',
     factory: function () {
       // 纯 DOM 方案：不依赖 react / ctx.slots，inject 为空。
       function apply() {

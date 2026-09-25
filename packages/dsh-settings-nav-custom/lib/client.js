@@ -404,7 +404,7 @@
 
   // ───────────────────────── 注册 ─────────────────────────
   window.__ModuleLoader__.load({
-    id: 'dsh-settings-nav-custom',
+    id: '@dsh-pack/dsh-settings-nav-custom',
     factory: function (require) {
       var inject = ['slots'];
       function apply(ctx) {

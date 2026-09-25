@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-synapse',
+  id: '@dsh-pack/dsh-synapse',
   factory: () => {
     // DSH Desktop 深色适配桥（0.6.3 第三案）：内核深色标志是 body[data-ds-dark-theme]
     // （dsh-client-ui-theme 服务维护，切换整套 --dsw-* token），而本插件的 dark 规则

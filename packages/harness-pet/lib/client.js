@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({ id: "harness-pet", factory: (require) => {
+window.__ModuleLoader__.load({ id: "@dsh-pack/harness-pet", factory: (require) => {
 var HarnessPet = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	//#region src/adapters/deepseek-harness.ts

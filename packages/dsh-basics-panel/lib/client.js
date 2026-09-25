@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-basics-panel",
+	id: "@dsh-pack/dsh-basics-panel",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

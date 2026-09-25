@@ -10,6 +10,10 @@
 //   更糟的是致命启动失败后 sanitizeProfile 会把 profile 补丁层改名成
 //   .bak-<时间戳> 并回滚到原始 bundle 清单——**整个插件包被抹掉**。
 // 所以这条必须是 error，且排在最前。
+//
+// 第二条同级的成对性在文件下面：exports["./client"] 这份 bundle 里
+// __ModuleLoader__.load({ id }) 的注册名必须等于包名。它坏起来的形态是
+// 「宿主起来了、这个插件没反应」，用户只能从控制台看到，所以也按 P0 拦。
 // ---------------------------------------------------------------------------
 
 const fs = require('node:fs');
@@ -38,6 +42,26 @@ function resolveExportPath(pkgDir, target) {
   const abs = path.resolve(pkgDir, cleaned);
   if (!isPathInside(pkgDir, abs)) return { abs, rel: cleaned, outside: true };
   return { abs, rel: cleaned, exists: fs.existsSync(abs) };
+}
+
+/**
+ * 取出页内 bundle 的注册名：`window.__ModuleLoader__.load({ id: '…' , …`。
+ * 只看 load 之后的第一个 id 字面量（允许跨行，窗口 400 字符），因为 factory
+ * 体内还可能有别的 `id:` 字段。返回 undefined = 整个文件没有注册点。
+ */
+const CLIENT_LOAD_RE = /__ModuleLoader__\.load\s*\(\s*\{[\s\S]{0,400}?id\s*:\s*(['"])([^'"]+)\1/;
+
+function clientRegistrationId(source) {
+  const m = String(source).match(CLIENT_LOAD_RE);
+  return m ? m[2] : undefined;
+}
+
+/**
+ * 注册名是否对得上包名。内核 boot graph 行以**包名**为键，而 register() 的键是
+ * stripClientSuffix(registration.id)，所以 '<name>/client' 这一种写法同样能命中。
+ */
+function registrationIdMatches(name, id) {
+  return id === name || id === `${name}/client`;
 }
 
 function mainCandidates(manifest) {
@@ -107,6 +131,41 @@ function run(ctx = {}) {
           label
         )
       );
+    }
+
+    // ---- P0：注册名必须等于包名 ----
+    // 真机踩过：官方客户端一次报 20 个 `client-modules: could not load "@dsh-pack/x":
+    // plugins/??@dsh-pack/x/client.js&rev=…: loaded without registering "@dsh-pack/x"
+    // via __ModuleLoader__.load`。内核 dsh-client-modules 的 boot graph 行以包名为键
+    // （arrive(row) 载完 bundle 后查 factories.has(row.id)），而 register() 用
+    // stripClientSuffix(registration.id) 做键，所以 bundle 里注册裸名（'dsh-input-fold'）
+    // 或旧 scope 名（'@dsh-external/dsh-vision'）时那一行永远等不到。
+    // 注意它的失败形态是**静默不挂载**而不是崩溃：宿主半边照常起来、界面没反应，
+    // 所以必须在这里拦住，不能指望用户看得见。
+    if (declaresClient && clientResolved && clientResolved.exists) {
+      const regId = clientRegistrationId(fs.readFileSync(clientResolved.abs, 'utf8'));
+      if (regId === undefined) {
+        findings.push(
+          finding(
+            CHECK,
+            'error',
+            `exports["./client"]（${clientTarget}）里没有 window.__ModuleLoader__.load({ id, factory }) 注册：` +
+              `页内 bundle 是 classic script，不注册就不会有任何模块挂到包名下，client 半边静默失效`,
+            label
+          )
+        );
+      } else if (!registrationIdMatches(m.name, regId)) {
+        findings.push(
+          finding(
+            CHECK,
+            'error',
+            `client bundle 注册为 id: "${regId}"，但内核按包名 "${m.name}" 向 boot graph 要这一行 → ` +
+              `报 "loaded without registering \\"${m.name}\\""，该插件的 client 半边静默不挂载。` +
+              `改法：把注册名写成包名（或 "${m.name}/client"），别动 factory 体内的其它 id 字段`,
+            label
+          )
+        );
+      }
     }
 
     // ---- 发布被拒 / 法务 ----
@@ -219,7 +278,15 @@ function run(ctx = {}) {
   return findings;
 }
 
-module.exports = { CHECK, run, resolveExportPath, mainCandidates, FORBIDDEN_REPOSITORY };
+module.exports = {
+  CHECK,
+  run,
+  resolveExportPath,
+  mainCandidates,
+  clientRegistrationId,
+  registrationIdMatches,
+  FORBIDDEN_REPOSITORY,
+};
 
 if (require.main === module) {
   const findings = run();

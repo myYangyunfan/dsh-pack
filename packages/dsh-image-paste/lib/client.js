@@ -298,7 +298,7 @@
 
   // ───────────────────────── 注册 ─────────────────────────
   window.__ModuleLoader__.load({
-    id: 'dsh-image-paste',
+    id: '@dsh-pack/dsh-image-paste',
     factory: function (require) {
       var inject = [];
       function apply() {

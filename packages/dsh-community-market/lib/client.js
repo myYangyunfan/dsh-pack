@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({ id: "dsh-community-market", factory: (require) => {
+window.__ModuleLoader__.load({ id: "@dsh-pack/dsh-community-market", factory: (require) => {
 var module = { exports: {} };
 var exports = module.exports;
 

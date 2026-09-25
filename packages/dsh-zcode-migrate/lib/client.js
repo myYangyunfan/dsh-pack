@@ -9,7 +9,7 @@
 // 仅未迁/全选/反选）→ 迁移（默认先预演；真迁按批 3 条推进度）→ 结果（逐条状态 + 汇总）。
 // 所有数据都走宿主半的 /zcode-migrate/api/{inspect,migrate,verify}，客户端不碰文件系统。
 window.__ModuleLoader__.load({
-  id: 'dsh-zcode-migrate',
+  id: '@dsh-pack/dsh-zcode-migrate',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
