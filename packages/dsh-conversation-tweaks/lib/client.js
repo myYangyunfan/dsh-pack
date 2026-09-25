@@ -43,7 +43,78 @@ window.__ModuleLoader__.load({
 		// ------------------------------------------------------------------
 		// Settings
 		// ------------------------------------------------------------------
-		const NS = "dsh-conversation-tweaks";
+		// 内核里**没有** settingsScope 这个服务（@deepseek-ai/* 全文 0 处命中），
+		// 真实形状是 ctx.remote.settings：
+		//   describe() → { ok, value: { writable, hasDocument, namespaces: [view] } }
+		//   mutate(ns, [{ op: "set", path: [field], value }], revision) → { ok, value: view }
+		// view = { ns, schema, value, base, user, applies, secrets, revision, autoGenerate }
+		// ⚠ ns 是 **profile 条目 id**（见 cordis.patch.yml 的 `- id:`），不是包名，
+		//   也不是这里历史上写死的 "dsh-conversation-tweaks" —— 用错键会静默取不到值。
+		const ENTRY_ID = "conversation-tweaks";
+
+		/**
+		 * 把 remote.settings 收成这个 bundle 一直在用的 scope 形状
+		 * （getSnapshot / subscribe / set）。内核没有把「设置已变」桥接给页内
+		 * （只有 settings/conflict 与 settings/rejected 两个错误事件），所以
+		 * 实时性只能做到：挂载时取一次 + 自己写完后重取。
+		 */
+		function bindSettingsScope(ctx, entryId) {
+			let snapshot = { status: "loading", value: undefined, writable: false, revision: undefined };
+			const listeners = new Set();
+			const emit = () => { for (const fn of [...listeners]) fn(); };
+			// 快照引用必须稳定：selector 走 Object.is 比较，每轮都换新对象会自激重渲染。
+			const adopt = (next) => {
+				if (JSON.stringify(next.value) === JSON.stringify(snapshot.value)
+					&& next.status === snapshot.status && next.writable === snapshot.writable) return;
+				snapshot = next;
+				emit();
+			};
+			async function refresh() {
+				let response;
+				try {
+					response = await ctx.remote.settings.describe();
+				} catch (error) {
+					adopt({ ...snapshot, status: "failed" });
+					return;
+				}
+				if (!response || !response.ok) {
+					adopt({ ...snapshot, status: "failed" });
+					return;
+				}
+				const rows = response.value && Array.isArray(response.value.namespaces) ? response.value.namespaces : [];
+				const view = rows.find((row) => row.ns === entryId);
+				if (view === undefined) {
+					// 条目没出现在 describe() 里 = 它的 Config 没有任何 volatile 字段，
+					// 内核就不为它生成表单（volatileForm(schema) 为空即跳过）。
+					adopt({ ...snapshot, status: "missing" });
+					return;
+				}
+				adopt({
+					status: "ready",
+					value: view.value,
+					writable: response.value.writable !== false,
+					revision: view.revision
+				});
+			}
+			void refresh();
+			return {
+				getSnapshot: () => snapshot,
+				subscribe(fn) {
+					listeners.add(fn);
+					return () => { listeners.delete(fn); };
+				},
+				async set(field, value) {
+					const next = await ctx.remote.settings.mutate(entryId, [{ op: "set", path: [field], value }], snapshot.revision);
+					if (next && next.ok && next.value) {
+						adopt({ ...snapshot, value: next.value.value, revision: next.value.revision });
+						return;
+					}
+					await refresh();
+					if (!next || !next.ok) throw new Error((next && next.error && next.error.message) || "settings write rejected");
+				}
+			};
+		}
+
 		const L = {
 			quietTitle: "隐藏对话输出",
 			quietDesc: "开启后隐藏大量工具调用、工具结果与思考过程，只显示每一轮的最终总结输出。",
@@ -199,7 +270,7 @@ window.__ModuleLoader__.load({
 		function apply(ctx) {
 			ensureCss();
 
-			const scope = ctx.settingsScope.bind({ namespace: NS });
+			const scope = bindSettingsScope(ctx, ENTRY_ID);
 			const useScope = bindSnapshotSelector(scope);
 
 			const applyQuiet = () => {
@@ -224,7 +295,7 @@ window.__ModuleLoader__.load({
 		}
 
 		exports.apply = apply;
-		exports.inject = ["slots", "settingsScope"];
+		exports.inject = ["slots", "remote"];
 		return module.exports;
 	}
 });
