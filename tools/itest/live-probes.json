@@ -1,0 +1,45 @@
+{
+  "_meta": "J4 在真启动之后要打一遍的页内表面。加一条就是给某个插件加一道「路由真的挂上了」的断言。",
+  "_why": "只 grep 启动日志抓不到「路由从未挂上」这类静默失败：dsh-reasoning-effort 的 rpc.handle 抛在隔离层里、apply 不报错、J4 全绿，最后是用户在页面上看到 405。所以 J4 必须真发一次请求。",
+  "probes": [
+    {
+      "name": "reasoning-effort RPC 通道（带会话 cookie）",
+      "method": "POST",
+      "path": "/dsh-reasoning-effort/store",
+      "rpc": { "method": "store", "payload": {} },
+      "auth": "session",
+      "expect": { "status": 200, "contains": "\"type\":\"server-response\"" }
+    },
+    {
+      "name": "reasoning-effort 通道栅栏（不带 cookie 必须 401）",
+      "method": "POST",
+      "path": "/dsh-reasoning-effort/store",
+      "rpc": { "method": "store", "payload": {} },
+      "auth": "none",
+      "expect": { "status": 401 }
+    },
+    {
+      "name": "reasoning-effort 通道根不是 endpoint（404）",
+      "method": "POST",
+      "path": "/dsh-reasoning-effort",
+      "rpc": { "method": "store", "payload": {} },
+      "auth": "session",
+      "expect": { "status": 404 }
+    },
+    {
+      "name": "pocket RPC 通道（带会话 cookie）",
+      "method": "POST",
+      "path": "/dsh-pocket/pocket.status",
+      "rpc": { "method": "pocket.status", "payload": {} },
+      "auth": "session",
+      "expect": { "status": 200, "contains": "\"type\":\"server-response\"" }
+    },
+    {
+      "name": "balance /state（loopback 栅栏，无需 cookie）",
+      "method": "GET",
+      "path": "/api/dsh-balance/state",
+      "auth": "none",
+      "expect": { "status": 200 }
+    }
+  ]
+}

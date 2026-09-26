@@ -121,12 +121,19 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
     `tools/audit/settings-api.js` 按内核服务清单正向核对（快照见
     `tools/audit/kernel-services.json`，由 `extract-kernel-services.mjs` 生成），
     拦幽灵服务名与幽灵方法名。
-12. **静态门禁证明不了激活。** `--dump-config` 只证明**组合**（条目拼对了）。
-    apply 里抛错、`volatile` 用错包、服务名写错这类问题，dump 全绿而用户看到
-    「N entries did not activate」。**发布前必须真跑一次**
+12. **静态门禁证明不了激活，日志门禁证明不了「路由真的挂上了」。** `--dump-config` 只证明
+    **组合**（条目拼对了）。apply 里抛错、`volatile` 用错包、服务名写错这类问题，
+    dump 全绿而用户看到「N entries did not activate」。**发布前必须真跑一次**
     `node tools/itest/boot-activation.mjs`（J4：把 profile 复制到临时 DSH_HOME、
     用工作区源码覆盖进去、真挂载，要求零未激活 + 零被吞掉的降级日志 + 零 duplicate route，
     失败时会连内核的 startup 诊断一起打出来）。
+    它还会按 `tools/itest/live-probes.json` **真发 HTTP 打一遍页内表面** —— 因为还有第三种
+    静默：日志里一行都没有，路由却从未挂上（`ctx.connection.rpc.handle` 就是这类，
+    见 `docs/upstream/connection-rpc-handle-unusable.md`），用户拿到的是 405。
+    加插件时顺手往那份清单里加一条探针；删探针（或删掉清单文件）会被判 fail-closed。
+    ⚠ 页内 RPC 通道**不要用 `ctx.connection.rpc.handle`**：那个 API 在本版内核里必抛
+    （服务自己 ctx 没 inject `webServer`），要挂就挂到本插件自己 inject 的 `webServer` 上，
+    协议照 `dsh-pocket/lib/web-rpc.js` 或 `dsh-reasoning-effort/lib/web-rpc.js` 复刻。
 
 ## 命名规则
 

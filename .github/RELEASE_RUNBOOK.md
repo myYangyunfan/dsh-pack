@@ -30,7 +30,7 @@
 | 发布物内容 | `node tools/itest/pack-audit.mjs` | `npm pack` 真实产物：查 `files` 白名单有没有把 `node_modules`/`.map`（内嵌上游 TS 源码）/测试目录打进去，以及 bundle 的 `cordis.patch.yml` 有没有随包发布 —— 漏了就是「装得上、一个都不挂」 |
 | 单测 | `node --test "packages/*/test/*.test.js"` | — |
 | J1 组合 | `node tools/itest/boot-desktop-profile.mjs --job=j1` | 验证补丁层真挂得上、id 恰好出现一次、二次安装字节幂等 |
-| J4 激活 | `node tools/itest/boot-activation.mjs` | **发布前必跑**：真挂载所有条目，抓「apply 里抛错」「被 catch 吞掉的降级日志」「duplicate route」。J1 的 `--dump-config` 只证明组合，证明不了激活 |
+| J4 激活 | `node tools/itest/boot-activation.mjs` | **发布前必跑**：真挂载所有条目，抓「apply 里抛错」「被 catch 吞掉的降级日志」「duplicate route」，并按 `tools/itest/live-probes.json` **真发 HTTP** 打一遍页内表面（路由未挂上时症状是 405，日志里一行都没有）。J1 的 `--dump-config` 只证明组合，证明不了激活 |
 | J2 tarball | `... --job=j2` | **只有 tarball 安装会暴露 `files` 白名单错误与 `private:true`**；路径安装会把这两类都掩盖掉 |
 
 > `pack-audit` 目前因 `dsh-side-session`、`dsh-super-injector` 缺 LICENSE 而红。
