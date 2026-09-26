@@ -15,6 +15,7 @@
  */
 import z from '@deepseek-ai/schemastery';
 import { BUILTIN_ENTRIES, displayLevels, matchEntry } from './knowledge.js';
+import { createChannelRoute } from './web-rpc.js';
 export const name = 'dsh-reasoning-effort';
 /**
  * Hard dependencies: the loader waits for these services before calling
@@ -48,8 +49,10 @@ export const Config = z.object({
 function okResult(value) {
     return { ok: true, value };
 }
+// ⚠ details 必填：页内 parseConnectionResponse 校验 isRecord(error.details)，
+// 缺了它连失败信封都被当成非法响应抛掉（错误静默成 null）。见 lib/web-rpc.js。
 function failResult(code, message) {
-    return { ok: false, error: { code, message } };
+    return { ok: false, error: { code, message, details: {} } };
 }
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -235,33 +238,38 @@ export function apply(ctx, entryConfig) {
             settingsPath: path ?? null,
         };
     }
-    // Only Web profiles provide `connection`; mount the channel there without
-    // ever blocking this row in terminal-only profiles.
-    ctx.inject(['connection'], (connectionCtx) => {
-        const connection = connectionCtx.connection;
-        if (connection === undefined)
-            return;
-        connection.rpc.handle(RPC_CHANNEL, async (endpoint, payload) => {
-            switch (endpoint) {
-                case 'diagnose': {
-                    const request = isRecord(payload) ? payload : {};
-                    const provider = typeof request.provider === 'string' ? request.provider : '';
-                    const model = typeof request.model === 'string' ? request.model : '';
-                    if (provider.length === 0 || model.length === 0) {
-                        return failResult('invalid-request', 'provider and model are required');
-                    }
-                    try {
-                        return okResult(await diagnose(provider, model));
-                    }
-                    catch (error) {
-                        return failResult('diagnose-failed', `diagnose failed: ${error instanceof Error ? error.message : String(error)}`);
-                    }
+    async function handleEndpoint(endpoint, payload) {
+        switch (endpoint) {
+            case 'diagnose': {
+                const request = isRecord(payload) ? payload : {};
+                const provider = typeof request.provider === 'string' ? request.provider : '';
+                const model = typeof request.model === 'string' ? request.model : '';
+                if (provider.length === 0 || model.length === 0) {
+                    return failResult('invalid-request', 'provider and model are required');
                 }
-                case 'store':
-                    return okResult({ entries: readStore().entries ?? [] });
-                default:
-                    return failResult('not-found', `unknown endpoint ${JSON.stringify(endpoint)}`);
+                try {
+                    return okResult(await diagnose(provider, model));
+                }
+                catch (error) {
+                    return failResult('diagnose-failed', `diagnose failed: ${error instanceof Error ? error.message : String(error)}`);
+                }
             }
-        }, { authority: 'loopback' });
+            case 'store':
+                return okResult({ entries: readStore().entries ?? [] });
+            default:
+                return failResult('not-found', `unknown endpoint ${JSON.stringify(endpoint)}`);
+        }
+    }
+    // Only Web profiles provide `webServer`; mount the channel there without ever
+    // blocking this row in terminal-only profiles. connection 只用来做 401/403 栅栏
+    // （宿主内核的 connection.rpc.handle 在这版内核里必抛，原因见 lib/web-rpc.js）。
+    ctx.inject(['webServer', 'connection'], (channelCtx) => {
+        const route = createChannelRoute({
+            channel: RPC_CHANNEL,
+            handler: handleEndpoint,
+            connection: channelCtx.connection,
+            log: ctx.logger?.('dsh-reasoning-effort'),
+        });
+        channelCtx.effect(() => channelCtx.webServer.register(route), `dsh-reasoning-effort: ${RPC_CHANNEL} RPC channel`);
     });
 }
