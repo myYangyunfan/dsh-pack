@@ -1889,7 +1889,7 @@ window.__ModuleLoader__.load({
             "aria-disabled": disabled || undefined,
             style: Object.assign({}, checkStyle, disabled ? { cursor: "not-allowed" } : null),
             onClick: function (e) { e.stopPropagation(); if (disabled) return; onChange(!value); }
-          }, value ? React.createElement(Primitives.IconCheckOutline16, null) : null)
+          }, value ? React.createElement(Primitives.IconCheckOutlineRegular, null) : null)
         );
       }
       // Apple 风格分段控件：灰色药丸长条 + 白色小药丸高亮当前项（滑动过渡，主题自适应）
@@ -2444,7 +2444,7 @@ window.__ModuleLoader__.load({
           disabled: atFirst,
           "aria-label": L.pagerPrev,
           onClick: function () { go(-1); }
-        }, React.createElement(Primitives.IconChevronLeftOutline14, null)),
+        }, React.createElement(Primitives.IconChevronLeftOutlineRegular, null)),
         React.createElement("span", { style: { padding: "0 4px", fontSize: "14px", whiteSpace: "nowrap" } }, (index + 1) + "/" + count),
         React.createElement("button", {
           type: "button",
@@ -2453,7 +2453,7 @@ window.__ModuleLoader__.load({
           disabled: atLast,
           "aria-label": L.pagerNext,
           onClick: function () { go(1); }
-        }, React.createElement(Primitives.IconChevronRightOutline14, null))
+        }, React.createElement(Primitives.IconChevronRightOutlineRegular, null))
       );
     }
 
@@ -2490,8 +2490,8 @@ window.__ModuleLoader__.load({
         onMouseLeave: function (e) { e.currentTarget.style.background = "transparent"; },
         onClick: function (e) { e.stopPropagation(); copy(); }
       }, copied
-        ? React.createElement(Primitives.IconCheckOutline16, { size: 14 })
-        : React.createElement(Primitives.IconCopyOutline16, { size: 14 }));
+        ? React.createElement(Primitives.IconCheckOutlineRegular, { size: 14 })
+        : React.createElement(Primitives.IconCopyOutlineRegular, { size: 14 }));
     }
 
     /** clipboard API 不可用时的回退复制。 */

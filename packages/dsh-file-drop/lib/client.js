@@ -1193,7 +1193,7 @@
       try {
         react = require("react");
         var primitives = require("@deepseek-ai/dsh-client-ui-primitives");
-        IconPaperclip = primitives && primitives.IconPaperclipOutline16;
+        IconPaperclip = primitives && primitives.IconPaperclipOutlineRegular;
       } catch (_e) { /* 缺 react/图标：不注册按钮，拖放/粘贴照常 */ }
 
       function apply(ctx) {

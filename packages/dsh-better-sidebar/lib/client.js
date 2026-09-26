@@ -3817,7 +3817,7 @@ window.__ModuleLoader__.load({
 							onClick: () => {
 								openInSidebar(path);
 							},
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: name })]
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutlineRegular, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: name })]
 						}, path);
 					}),
 					hidden > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
@@ -4390,7 +4390,7 @@ window.__ModuleLoader__.load({
 							onClick: () => {
 								controlsRef.current?.save();
 							},
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutline16, { size: 14 })
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutlineRegular, { size: 14 })
 						}),
 						saveLabel !== "" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: clsx(sidebar_module_css_default.editorStatus, toolbar?.saveState === "failed" && sidebar_module_css_default.editorStatusError),
@@ -4847,7 +4847,7 @@ window.__ModuleLoader__.load({
 								onClick: () => {
 									removeCustom(editor.id);
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, { size: 14 })
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutlineRegular, { size: 14 })
 							})
 						]
 					}, editor.id)),
@@ -5243,7 +5243,7 @@ window.__ModuleLoader__.load({
 						onClick: () => {
 							stageEntry(entry, staged);
 						},
-						children: staged ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutline16, {})
+						children: staged ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutlineRegular, {}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutlineRegular, {})
 					})]
 				}, `${staged ? "s" : "u"}:${entry.path}`);
 			};
@@ -5274,7 +5274,7 @@ window.__ModuleLoader__.load({
 							onClick: () => {
 								refresh();
 							},
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline16, { size: 14 })
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, { size: 14 })
 						})]
 					}),
 					loading && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -5440,21 +5440,21 @@ window.__ModuleLoader__.load({
 								{
 									id: "open",
 									label: t("openEditor"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutlineRegular, { size: 14 })
 								},
 								fileMenu?.staged === true ? {
 									id: "stage",
 									label: t("unstage"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutlineRegular, { size: 14 })
 								} : {
 									id: "stage",
 									label: t("stage"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutlineRegular, { size: 14 })
 								},
 								...fileMenu !== null && !isUntracked(fileMenu.entry) ? [{
 									id: "discard",
 									label: t("discard"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, { size: 14 }),
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutlineRegular, { size: 14 }),
 									danger: true
 								}] : [],
 								{
@@ -5464,12 +5464,12 @@ window.__ModuleLoader__.load({
 								{
 									id: "relative",
 									label: t("copyRelative"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 14 })
 								},
 								{
 									id: "absolute",
 									label: t("copyAbsolute"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 14 })
 								}
 							],
 							onSelect: (id) => {
@@ -5517,17 +5517,17 @@ window.__ModuleLoader__.load({
 								{
 									id: "copyShort",
 									label: t("copyShortHash"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 14 })
 								},
 								{
 									id: "copyFull",
 									label: t("copyFullHash"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 14 })
 								},
 								{
 									id: "copySubject",
 									label: t("copySubject"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 14 })
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 14 })
 								},
 								{
 									type: "separator",
@@ -6042,7 +6042,7 @@ window.__ModuleLoader__.load({
 							"aria-label": t("refresh"),
 							title: t("refresh"),
 							onClick: refresh,
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline16, { size: 14 })
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, { size: 14 })
 						})]
 					}),
 					loading && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -6609,7 +6609,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 						onClick: () => {
 							refresh(parentSessionId);
 						},
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline14, {}), t("retry")]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, {}), t("retry")]
 					})]
 				}),
 				visibleEntries.map((entry) => {
@@ -7094,7 +7094,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 							onClick: () => {
 								if (rootId !== void 0) refresh(rootId);
 							},
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline14, {})
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, {})
 						})
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -7595,7 +7595,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: SideChatView_module_css_default.sidechatRowChevron,
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { size: 12 })
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular, { size: 12 })
 						}),
 						label,
 						meta
@@ -7840,7 +7840,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				const items = [{
 					id: "$new",
 					label: t("sideChatNew"),
-					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {})
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, {})
 				}];
 				if (threads.length > 0) {
 					items.push({
@@ -7917,7 +7917,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: SideChatView_module_css_default.sidechatHero,
 					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconNewChatOutline16, {}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconNewChatOutlineRegular, {}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: clsx(SideChatView_module_css_default.sidechatHeroTitle, busy === "starting" && SideChatView_module_css_default.sidechatShimmerText),
 							children: busy === "starting" ? t("sideChatCreating") : t("sideChatEmpty")
@@ -8047,14 +8047,14 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								onClick: () => void handleCancel(),
 								disabled: busy !== null,
 								title: t("sideChatCancelTitle"),
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconStopFill16, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconStopFillRegular, {})
 							}, "stop") : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
 								className: SideChatView_module_css_default.sidechatSendBtn,
 								onClick: () => void handleSend(),
 								disabled: composer.trim() === "" || busy !== null,
 								title: t("sideChatSend"),
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSendOutline16, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSendOutlineRegular, {})
 							}, "send")]
 						})]
 					})
@@ -8527,7 +8527,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								title: t("browserBack"),
 								disabled: cursor <= 0,
 								onClick: goBack,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutline14, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutlineRegular, {})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -8536,7 +8536,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								title: t("browserForward"),
 								disabled: cursor >= history.length - 1,
 								onClick: goForward,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular, {})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -8546,7 +8546,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								onClick: () => {
 									setReloadKey((key) => key + 1);
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline14, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, {})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: sidebar_module_css_default.browserInput,
@@ -8568,7 +8568,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								onClick: () => {
 									navigateTo(input);
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutline14, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutlineRegular, {})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -8636,7 +8636,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: sidebar_module_css_default.browserBlocked,
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconWarningOutline16, { size: 16 }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconWarningOutlineRegular, { size: 16 }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: sidebar_module_css_default.browserBlockedTitle,
 						children: t("browserEmbedBlocked", { host })
@@ -8701,7 +8701,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "editor",
 					title: () => t("files"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenRegular, { size }),
 					order: 10,
 					hidden: false,
 					dedupeKey: (tab) => tab.path,
@@ -8723,7 +8723,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "git",
 					title: () => t("git"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutline16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutlineRegular, { size }),
 					order: 20,
 					single: true,
 					component: ({ ctx, store, scope, onOpenDiff }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GitView, {
@@ -8737,7 +8737,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "subagent",
 					title: () => t("subagent"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconThinkOutline16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconThinkOutlineRegular, { size }),
 					order: 30,
 					single: true,
 					settings: { toggles: [{
@@ -8761,7 +8761,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "sidechat",
 					title: () => t("sideChat"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconNewChatOutline16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconNewChatOutlineRegular, { size }),
 					order: 35,
 					createTab: () => {
 						const threadId = consumeSidechatSeed();
@@ -9143,7 +9143,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "code",
 					title: () => t("viewerCode"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutlineRegular, { size }),
 					exts: [],
 					priority: -100,
 					fetchStrategy: "fsRead",
@@ -9152,7 +9152,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 				{
 					id: "binary-download",
 					title: () => t("viewerBinary"),
-					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDownloadOutline16, { size }),
+					icon: (size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDownloadOutlineRegular, { size }),
 					exts: [
 						"doc",
 						"xls",
@@ -9377,7 +9377,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 										event.stopPropagation();
 										onClose(tab.id);
 									},
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseFill14, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseFillRegular, {})
 								})
 							]
 						}, tab.id)),
@@ -9407,7 +9407,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 									setMenuOpen((v) => !v);
 									setTabMenu(null);
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, {})
 							})
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
@@ -10445,7 +10445,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 					if (target.id === "vscode") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconVscode16, { size: 16 });
 					if (target.id === "cursor") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SiCursor, { size: 16 });
 					if (target.id === "zed") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SiZedindustries, { size: 16 });
-					return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, { size: 16 });
+					return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutlineRegular, { size: 16 });
 				};
 				const pinned = openWithTargets.filter((target) => pinnedIds.includes(target.id)).map((target) => ({
 					id: `open-with:${target.id}`,
@@ -10491,7 +10491,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: sidebar_module_css_default.openWithName,
 								children: t("openWithMenu")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular, {
 								size: 14,
 								className: sidebar_module_css_default.openWithChevron,
 								"aria-hidden": true
@@ -10553,7 +10553,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 									className: sidebar_module_css_default.explorerName,
 									children: entry.name
 								}),
-								entry.isSymlink && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutline16, {
+								entry.isSymlink && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutlineRegular, {
 									size: 12,
 									className: sidebar_module_css_default.explorerSymlink
 								}),
@@ -10597,7 +10597,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								className: sidebar_module_css_default.explorerName,
 								children: entry.name
 							}),
-							entry.isSymlink && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutline16, {
+							entry.isSymlink && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconLinkOutlineRegular, {
 								size: 12,
 								className: sidebar_module_css_default.explorerSymlink
 							}),
@@ -10706,13 +10706,13 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 							...rowMenu?.isDir === false && onOpenFileNewTab !== void 0 ? [{
 								id: "open-new-tab",
 								label: t("openFileNewTab"),
-								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, { size: 16 })
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutlineRegular, { size: 16 })
 							}] : [],
 							...openWithEntries(),
 							...rowMenu?.isDir === false ? [{
 								id: "download",
 								label: t("download"),
-								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDownloadOutline16, { size: 16 })
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDownloadOutlineRegular, { size: 16 })
 							}] : [],
 							...rowMenu?.isDir === true ? [{
 								id: "upload-here",
@@ -10722,12 +10722,12 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 							{
 								id: "relative",
 								label: t("copyRelative"),
-								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 16 })
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 16 })
 							},
 							{
 								id: "absolute",
 								label: t("copyAbsolute"),
-								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, { size: 16 })
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, { size: 16 })
 							}
 						],
 						onSelect: (id) => {
@@ -10974,7 +10974,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								onClick: () => {
 									setRefreshTick((tick) => tick + 1);
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutline16, { size: 14 })
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, { size: 14 })
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -10996,7 +10996,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								onClick: () => {
 									folderInputRef.current?.click();
 								},
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, { size: 14 })
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenRegular, { size: 14 })
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								ref: fileInputRef,
@@ -11190,7 +11190,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: sidebar_module_css_default.explorerRailHeader,
 						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, { size: 14 }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenRegular, { size: 14 }),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: sidebar_module_css_default.explorerRailTitle,
 								children: t("explorer")
@@ -11201,7 +11201,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 								"aria-label": t("explorerCollapse"),
 								title: t("explorerCollapse"),
 								onClick: onCollapse,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutline14, { size: 14 })
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutlineRegular, { size: 14 })
 							})
 						]
 					}),
@@ -11247,7 +11247,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 					"aria-label": t("explorerExpand"),
 					title: t("explorerExpand"),
 					onClick: props.onExpand,
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { size: 14 })
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular, { size: 14 })
 				})
 			});
 		}
@@ -12612,7 +12612,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 									onClick: () => {
 										store.reduce(toggleBottomPanel);
 									},
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseFill14, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseFillRegular, {})
 								})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -13403,7 +13403,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 						className: SideCardSection_module_css_default.selectAnchorText,
 						children: selected.length === 0 ? placeholder ?? "—" : selected.map((option) => textOf(option.title)).join(", ")
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, { size: 12 })
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
 				]
 			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
@@ -13767,7 +13767,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 						className: SideCardSection_module_css_default.cardSettings,
 						"aria-label": `${props.title} ${t("settingsPopup")}`,
 						onClick: props.onOpenSettings,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSettingsOutline16, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("settingsPopup") })]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSettingsOutlineRegular, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("settingsPopup") })]
 					})]
 				});
 			};
@@ -13912,7 +13912,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 										onClick: () => {
 											setStripSettingsOpen(true);
 										},
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSettingsOutline16, { size: 14 })
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSettingsOutlineRegular, { size: 14 })
 									})]
 								})]
 							})
@@ -13949,7 +13949,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 									className: SideCardSection_module_css_default.cardTop,
 									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: SideCardSection_module_css_default.cardIconChip,
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, { size: 16 })
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, { size: 16 })
 									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: SideCardSection_module_css_default.cardTitle,
 										children: t("addPluginsTabCard")
@@ -13992,7 +13992,7 @@ Mode: this is a continuable side conversation. Your answers stay in this side th
 									className: SideCardSection_module_css_default.cardTop,
 									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: SideCardSection_module_css_default.cardIconChip,
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, { size: 16 })
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, { size: 16 })
 									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: SideCardSection_module_css_default.cardTitle,
 										children: t("addPluginsViewerCard")

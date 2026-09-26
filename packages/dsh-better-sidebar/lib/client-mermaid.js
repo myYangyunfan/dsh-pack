@@ -200569,7 +200569,7 @@ ${prefix}${Math.round(value * 100) / 100}${suffix}`;
 						onClick: onCopy,
 						"aria-label": t("copy"),
 						title: t("copy"),
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, {}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: copied ? t("copied") : t("copy") })]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutlineRegular, {}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: copied ? t("copied") : t("copy") })]
 					})]
 				}),
 				error !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {

@@ -35725,7 +35725,7 @@ globalThis.__dshChunks__["editor"] = (require) => {
 						"aria-label": t("save"),
 						title: `${t("save")} (Ctrl/Cmd+S)`,
 						onClick: save,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutline16, {})
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutlineRegular, {})
 					}),
 					hasDiff && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",

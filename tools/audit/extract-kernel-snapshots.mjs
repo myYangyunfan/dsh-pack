@@ -140,7 +140,39 @@ writeFileSync(
   JSON.stringify({ _meta: '由 extract-kernel-snapshots.mjs 生成，勿手改', kernelVersion, count: sortedIds.length, ids: sortedIds }, null, 2) + '\n'
 );
 
+// 图标导出快照：dsh-client-ui-primitives 的 `Icon*` 名字。
+// 页内 bundle 里 `.IconXxx14` 这种带尺寸后缀的写法取自旧版本命名，当前内核没有这些导出，
+// 成员取到 undefined 后当组件渲染 ⇒ Minified React error #130、整条 slot 退位。
+// namespace.js 拿这份快照正向核对（文件缺失时 fail-closed）。
+const PRIMITIVES = ['@deepseek-ai', 'dsh-client-ui-primitives', 'lib', 'index.js'];
+const primPath = join(root, ...PRIMITIVES);
+// ⚠ 必须解析**真正的 `export { … }` 清单**，不能拿「文件里出现过的任何大写标识符」当导出集。
+//   上一版就是这么错的：内核只导出 IconSearchOutlineRegular / …Medium，
+//   而 IconSearchOutline 作为文件内部标识符也出现过，于是被判成"存在"，
+//   把一次改错的 codemod 放成绿 —— 又一个假绿。
+let iconNames = [];
+if (existsSync(primPath)) {
+  const prim = readFileSync(primPath, 'utf8');
+  const exportBlock = prim.match(/\nexport \{([\s\S]*?)\};/);
+  if (!exportBlock) {
+    console.warn('⚠ 找不到 primitives 的 export 块，图标快照为空（namespace.js 会因此报错）');
+  } else {
+    const all = new Set();
+    for (const m of exportBlock[1].matchAll(/([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?/g)) {
+      all.add(m[2] || m[1]);
+    }
+    iconNames = [...all].filter((n) => /^Icon[A-Za-z0-9]+$/.test(n)).sort();
+  }
+} else {
+  console.warn(`⚠ 找不到 ${PRIMITIVES.join('/')}，图标快照为空（namespace.js 会因此报错而不是静默放过）`);
+}
+writeFileSync(
+  join(OUT_DIR, 'kernel-primitives-icons.json'),
+  JSON.stringify({ _meta: '由 extract-kernel-snapshots.mjs 生成，勿手改', kernelVersion, count: iconNames.length, icons: iconNames }, null, 2) + '\n'
+);
+
 console.log(`内核版本: ${kernelVersion ?? '(未知)'}`);
 console.log(`包名快照: ${sortedPackages.length} -> tools/audit/kernel-packages.json`);
 console.log(`id 快照 : ${sortedIds.length} -> tools/audit/kernel-entry-ids.json`);
+console.log(`图标快照: ${iconNames.length} -> tools/audit/kernel-primitives-icons.json`);
 console.log(`其中 @deepseek-ai/* : ${sortedPackages.filter((n) => n.startsWith('@deepseek-ai/')).length}`);

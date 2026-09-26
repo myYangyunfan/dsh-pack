@@ -152,6 +152,41 @@ function lineNumbersOf(text, needle) {
   return lines;
 }
 
+/**
+ * 读 primitives 图标导出快照。文件不存在或坏掉时返回 null ——
+ * 调用方必须把它当 error 处理，不能当成「没有违规」。
+ */
+function readIconSnapshot() {
+  const file = path.join(__dirname, 'kernel-primitives-icons.json');
+  if (!fs.existsSync(file)) return null;
+  try {
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(j.icons) ? new Set(j.icons) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 一个包里会进 boot graph / 被页内加载的 .js（页内 bundle 及其分块）。 */
+function clientBundleFilesOf(pkg) {
+  const seen = new Set();
+  for (const sub of ['lib', 'client', '.']) {
+    const dir = path.join(pkg.dir, sub);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of walkFiles(dir)) {
+      if (!f.endsWith('.js')) continue;
+      // 相对**包目录**算，不能用 toRepoRelative：测试夹具的包根在临时目录里，
+      // 不在仓库内，repo-relative 会算出错路径导致读文件失败被静默跳过（=假绿）。
+      const rel = path.relative(pkg.dir, f).replace(/\\/g, '/');
+      if (/\.test\.js$/.test(rel)) continue;
+      // walkFiles 是递归的，而 'lib'/'client' 也含在 '.' 这一趟里 ⇒ 同一文件会被
+      // 枚举到两次，不去重就会把同一条违规报两遍。
+      seen.add(rel);
+    }
+  }
+  return [...seen].sort();
+}
+
 function run(ctx = {}) {
   const pack = ctx.pack || detectPackRoot();
   const findings = [];
@@ -163,6 +198,7 @@ function run(ctx = {}) {
   const kernelIdFile = ctx.kernelEntryIds || readKernelEntryIds();
   const kernelNames = new Set(kernelPkgFile.packages || []);
   const kernelIds = new Set(kernelIdFile.ids || []);
+  const iconNames = ctx.primitiveIcons === undefined ? readIconSnapshot() : ctx.primitiveIcons;
   const packNames = new Set(
     pack.packages
       .map((p) => p.manifest && p.manifest.name)
@@ -296,6 +332,48 @@ function run(ctx = {}) {
               `${field} 里的 ${dep} 不在官方内核包快照里：客户端根本没这个包，` +
                 `版本判定与真实装配都会对不上（实测 dsh-client-runtime / dsh-client-web-react 即此类）`,
               label
+            )
+          );
+        }
+      }
+    }
+
+    // ---- 5b. 页内 bundle 引用的 primitives 图标名必须真存在 ----
+    // 症状最难查的一类：`.IconXxx14` 这类带尺寸后缀的名字取自旧版命名，当前内核
+    // dsh-client-ui-primitives 没有这些导出 ⇒ 成员取到 undefined，被当组件渲染时
+    // 报 `Minified React error #130`，整条 slot 退位（侧栏按钮/浮层直接消失）。
+    // 不崩应用、只在控制台留一行压缩过的错误，所以必须静态拦。
+    if (iconNames === null) {
+      findings.push(
+        finding(
+          CHECK,
+          'error',
+          '读不到 tools/audit/kernel-primitives-icons.json：图标名核对无法判定（宁可报错也不静默放过）',
+          '(仓库级)'
+        )
+      );
+    } else {
+      for (const rel of clientBundleFilesOf(pkg)) {
+        let text;
+        try {
+          text = fs.readFileSync(path.join(pkg.dir, rel), "utf8");
+        } catch {
+          continue;
+        }
+        const bad = new Set();
+        for (const m of text.matchAll(/\.Icon([A-Za-z0-9]+)\b/g)) {
+          const name = `Icon${m[1]}`;
+          if (!iconNames.has(name)) bad.add(name);
+        }
+        for (const name of bad) {
+          findings.push(
+            finding(
+              CHECK,
+              'error',
+              `引用了 primitives 不存在的图标导出 .${name}：成员恒为 undefined，` +
+                `渲染时抛 Minified React error #130 ⇒ 整条 slot 退位（按钮/浮层消失）。` +
+                `带尺寸后缀的名字（…14/…16）是旧版命名，现在尺寸由 size 属性给`,
+              `${label} ${rel}`
             )
           );
         }

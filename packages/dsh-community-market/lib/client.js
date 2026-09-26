@@ -44,7 +44,7 @@ function MarketLauncher({ wide, useStore, actions, t }) {
       "aria-label": t("tab"),
       "aria-haspopup": "dialog",
       "aria-expanded": open,
-      icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_dsh_client_ui_primitives.IconCordisPluginOutline14, { size: wide ? 16 : 18 }),
+      icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_dsh_client_ui_primitives.IconCordisPluginOutlineRegular, { size: wide ? 16 : 18 }),
       onClick: () => actions.open(),
       children: wide ? t("tab") : null
     }
@@ -237,7 +237,7 @@ function catalogFailureMessage(cause, source, t) {
 function PluginIcon({ item, large = false }) {
   const icon = item.media?.icon;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: large ? "dshMarketGlyph dshMarketGlyphLarge" : "dshMarketGlyph", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCordisPluginOutline14, { size: large ? 28 : 20 }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCordisPluginOutlineRegular, { size: large ? 28 : 20 }),
     icon !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
       "img",
       {
@@ -937,19 +937,19 @@ function MarketSurface({ initialView = "installable", readLocale, t, showHeader 
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketViewBar", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketViewSwitch", role: "group", "aria-label": t("title"), children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_dsh_client_ui_primitives2.Pill, { active: view === "discover", "aria-pressed": view === "discover", onClick: () => selectMarketView("discover"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDataOutline16, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDataOutlineRegular, { size: 14 }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: t("discover") })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_dsh_client_ui_primitives2.Pill, { active: view === "installable", "aria-pressed": view === "installable", onClick: () => selectMarketView("installable"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutline16, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutlineRegular, { size: 14 }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: t("installable") })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_dsh_client_ui_primitives2.Pill, { active: view === "installed", "aria-pressed": view === "installed", onClick: () => selectMarketView("installed"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCheckOutline16, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCheckOutlineRegular, { size: 14 }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: t("installed") })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_dsh_client_ui_primitives2.Pill, { active: view === "sources", "aria-pressed": view === "sources", onClick: () => selectMarketView("sources"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutline16, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutlineRegular, { size: 14 }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: t("sources") })
             ] })
           ] }),
@@ -958,7 +958,7 @@ function MarketSurface({ initialView = "installable", readLocale, t, showHeader 
             ": ",
             currentSource.name,
             " ",
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutline16, { size: 12 })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutlineRegular, { size: 12 })
           ] }) })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("main", { className: "dshMarketMain", children: view === "discover" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1157,7 +1157,7 @@ function MarketSurface({ initialView = "installable", readLocale, t, showHeader 
                 import_dsh_client_ui_primitives2.Button,
                 {
                   variant: "primary",
-                  icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutline16, {}),
+                  icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutlineRegular, {}),
                   disabled: mutationPending || !manifestUrl.trim(),
                   onClick: () => {
                     void mutate({ action: "add-standard", manifestUrl: manifestUrl.trim() }).then((succeeded) => {
@@ -1203,10 +1203,10 @@ function MarketSettingsTab({ initialView, readLocale, t }) {
 function DiscoverView(props) {
   const noSources = props.state !== void 0 && !props.state.sources.some((source) => source.enabled);
   if (noSources) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dshMarketEmptyIcon", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutline14, { size: 24 }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dshMarketEmptyIcon", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutlineRegular, { size: 24 }) }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: props.t("emptyTitle") }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: props.t("emptyBody") }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "primary", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutline16, {}), onClick: props.onSources, children: props.t("chooseSources") })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "primary", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutlineRegular, {}), onClick: props.onSources, children: props.t("chooseSources") })
   ] });
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketContent", children: [
     props.metadata !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketIndexMeta", role: "status", children: [
@@ -1235,14 +1235,14 @@ function DiscoverView(props) {
         import_dsh_client_ui_primitives2.Input,
         {
           className: "dshMarketSearch",
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutlineRegular, {}),
           value: props.query,
           disabled: props.mutationPending,
           placeholder: props.t("search"),
           onChange: (event) => props.onQuery(event.currentTarget.value)
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { type: "submit", variant: "primary", disabled: props.mutationPending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutline16, {}), children: props.t("searchAction") }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { type: "submit", variant: "primary", disabled: props.mutationPending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutlineRegular, {}), children: props.t("searchAction") }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Tooltip, { label: props.t("refresh"), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         import_dsh_client_ui_primitives2.Button,
         {
@@ -1251,7 +1251,7 @@ function DiscoverView(props) {
           variant: "toolbar",
           "aria-label": props.t("refresh"),
           disabled: props.loading || props.loadingMore || props.mutationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}),
           onClick: props.onRefresh
         }
       ) }),
@@ -1279,7 +1279,7 @@ function DiscoverView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "error", size: 14 }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: props.t("catalogError") }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: props.error }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}), onClick: props.onRefresh, children: props.t("retry") })
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}), onClick: props.onRefresh, children: props.t("retry") })
     ] }),
     props.error === void 0 && props.loading && props.items.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "ongoing", size: 16 }),
@@ -1305,10 +1305,10 @@ function DiscoverView(props) {
 function InstallableView(props) {
   const noSources = props.state !== void 0 && !props.state.sources.some((source) => source.enabled);
   if (noSources) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dshMarketEmptyIcon", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutline14, { size: 24 }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dshMarketEmptyIcon", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutlineRegular, { size: 24 }) }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: props.t("emptyTitle") }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: props.t("emptyBody") }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "primary", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutline16, {}), onClick: props.onSources, children: props.t("chooseSources") })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "primary", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSettingsOutlineRegular, {}), onClick: props.onSources, children: props.t("chooseSources") })
   ] });
   if (props.unavailable) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", role: "status", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "warning", size: 16 }),
@@ -1322,7 +1322,7 @@ function InstallableView(props) {
   if (!props.loaded && props.error !== void 0) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", role: "alert", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "error", size: 14 }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: props.t("installableError") }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}), onClick: props.onRetry, children: props.t("retry") })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}), onClick: props.onRetry, children: props.t("retry") })
   ] });
   if (!props.loaded) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "ongoing", size: 16 }),
@@ -1340,7 +1340,7 @@ function InstallableView(props) {
           variant: "outline",
           size: "sm",
           disabled: props.loading || props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}),
           onClick: props.onRefresh,
           children: props.t("rescanInstallable")
         }
@@ -1367,7 +1367,7 @@ function InstallableView(props) {
         import_dsh_client_ui_primitives2.Input,
         {
           className: "dshMarketSearch",
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutlineRegular, {}),
           value: props.query,
           disabled: props.operationPending,
           placeholder: props.t("search"),
@@ -1380,7 +1380,7 @@ function InstallableView(props) {
           type: "submit",
           variant: "primary",
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconSearchOutlineRegular, {}),
           children: props.t("searchAction")
         }
       ),
@@ -1444,7 +1444,7 @@ function InstalledView(props) {
   if (!props.loaded && props.error !== void 0) return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketEmpty", role: "alert", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.StateDot, { state: "error", size: 14 }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: props.t("installationsError") }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}), onClick: props.onRetry, children: props.t("retry") })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}), onClick: props.onRetry, children: props.t("retry") })
   ] });
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketContent", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketSectionHead", children: [
@@ -1458,7 +1458,7 @@ function InstalledView(props) {
           variant: "outline",
           size: "sm",
           disabled: props.loading || props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}),
           onClick: props.onRetry,
           children: props.t("refresh")
         }
@@ -1527,7 +1527,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("update")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutlineRegular, {}),
           onClick: () => props.onUpdate(installation.receipt),
           children: props.t("update")
         }
@@ -1539,7 +1539,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("disable")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutlineRegular, {}),
           onClick: () => props.onDisable(installation.disableBundleId),
           children: props.t("disable")
         }
@@ -1551,7 +1551,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("enable")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutlineRegular, {}),
           onClick: () => props.onEnable(installation.enableBundleId),
           children: props.t("enable")
         }
@@ -1563,7 +1563,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("uninstall")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutlineRegular, {}),
           onClick: () => props.onUninstall(installation.receipt),
           children: props.t("uninstall")
         }
@@ -1575,7 +1575,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("disable")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutlineRegular, {}),
           onClick: () => props.onDisable(installation.bundleId),
           children: props.t("disable")
         }
@@ -1587,7 +1587,7 @@ function InstallationCard(props) {
           size: "sm",
           "aria-label": `${props.t("enable")}: ${displayName}`,
           disabled: props.operationPending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutlineRegular, {}),
           onClick: () => props.onEnable(installation.bundleId),
           children: props.t("enable")
         }
@@ -1671,7 +1671,7 @@ function ItemSourceRow({ source, t }) {
         children: [
           label,
           " ",
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutline16, { size: 12 })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutlineRegular, { size: 12 })
         ]
       }
     )
@@ -1686,10 +1686,10 @@ function SourcesView({ state, catalog, error, pending, adapterGuideHref, onMutat
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: t("sources") }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: t("sourceNotice") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", disabled: pending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutline16, {}), onClick: onAddStandard, children: t("addStandard") })
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", disabled: pending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutlineRegular, {}), onClick: onAddStandard, children: t("addStandard") })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketBanner dshMarketSourceGuide", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutline14, { size: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconGlobeOutlineRegular, { size: 14 }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
         t("sourcePartnershipBefore"),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("a", { href: DSH_DESKTOP_ISSUES_URL, target: "_blank", rel: "noopener noreferrer", children: t("sourcePartnershipContact") }),
@@ -1769,7 +1769,7 @@ function SourceRow({ source, result, pending, canMoveUp, canMoveDown, onMoveUp, 
           size: "sm",
           "aria-label": t("moveUp"),
           disabled: pending || !canMoveUp,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconChevronUpOutline14, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconChevronUpOutlineRegular, {}),
           onClick: onMoveUp
         }
       ) }),
@@ -1781,7 +1781,7 @@ function SourceRow({ source, result, pending, canMoveUp, canMoveDown, onMoveUp, 
           size: "sm",
           "aria-label": t("moveDown"),
           disabled: pending || !canMoveDown,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconChevronDownOutline14, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconChevronDownOutlineRegular, {}),
           onClick: onMoveDown
         }
       ) }),
@@ -1793,7 +1793,7 @@ function SourceRow({ source, result, pending, canMoveUp, canMoveDown, onMoveUp, 
           role: "radio",
           "aria-checked": source.enabled,
           disabled: pending,
-          icon: source.enabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCheckOutline16, {}) : void 0,
+          icon: source.enabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconCheckOutlineRegular, {}) : void 0,
           onClick: onSelect,
           children: source.enabled ? t("selectedSource") : t("selectSource")
         }
@@ -1806,7 +1806,7 @@ function SourceRow({ source, result, pending, canMoveUp, canMoveDown, onMoveUp, 
           size: "sm",
           "aria-label": t("remove"),
           disabled: pending,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutline16, {}),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutlineRegular, {}),
           onClick: onRemove
         }
       ) })
@@ -1823,7 +1823,7 @@ function AvailableSource({ provider, pending, onAdd, t }) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: provider.description }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SourceAttribution, { attribution: provider.attribution })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", size: "sm", disabled: pending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutline16, {}), onClick: onAdd, children: t("add") })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.Button, { variant: "outline", size: "sm", disabled: pending, icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlusOutlineRegular, {}), onClick: onAdd, children: t("add") })
   ] });
 }
 function OperationFacts({ operation, showExpiry = true, t }) {
@@ -1880,7 +1880,7 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
           {
             variant: "primary",
             disabled: pending,
-            icon: installing ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutline16, {}) : uninstalling ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutline16, {}) : updating ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutline16, {}) : enabling ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutline16, {}) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutline16, {}),
+            icon: installing ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutlineRegular, {}) : uninstalling ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconTrashOutlineRegular, {}) : updating ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutlineRegular, {}) : enabling ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPlayOutlineRegular, {}) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconPauseOutlineRegular, {}),
             onClick: onConfirm,
             children: confirmLabel
           }
@@ -1948,7 +1948,7 @@ function OperationSuccessModal({ operation, canRestart, pending, error, onClose,
           {
             variant: "primary",
             disabled: !canRestart || pending,
-            icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutline16, {}),
+            icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRefreshOutlineRegular, {}),
             onClick: onRestart,
             children: pending ? t("restarting") : t("restartNow")
           }
@@ -1994,7 +1994,7 @@ function ItemActionModal({
       {
         variant: "primary",
         disabled: pending,
-        icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutline16, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconDownloadOutlineRegular, {}),
         onClick: onConfirm,
         children: pending ? t("installing") : t("confirmInstall")
       }
@@ -2004,7 +2004,7 @@ function ItemActionModal({
       import_dsh_client_ui_primitives2.Button,
       {
         variant: "outline",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutline16, { size: 12 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutlineRegular, { size: 12 }),
         onClick: () => window.open(value.item.repository.url, "_blank", "noopener,noreferrer"),
         children: t("repository")
       }
@@ -2090,7 +2090,7 @@ function ItemActionModal({
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("a", { href: verificationHelpHref, target: "_blank", rel: "noopener noreferrer", children: [
               t("verificationDetails"),
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutline16, { size: 12 })
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_dsh_client_ui_primitives2.IconRightUpOutlineRegular, { size: 12 })
             ] })
           ] }),
           installation === void 0 && !inventoryLoading && inventoryError === void 0 && !checking && manualInstall !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dshMarketManualInstall", children: [
@@ -2161,7 +2161,7 @@ function MarketOverlay({ useStore, actions, readLocale, t, initialView }) {
             variant: "ghost",
             size: "sm",
             "aria-label": t("closeMarket"),
-            icon: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconCloseOutline16, {}),
+            icon: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconCloseOutlineRegular, {}),
             onClick: () => actions.close()
           }
         ) })
