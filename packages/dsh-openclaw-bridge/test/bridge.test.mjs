@@ -1,19 +1,20 @@
 // 协议层单元测试：mock DSH 核心服务 + mock 腾讯 iLink 云，
 // 验证桥接插件的 HTTP/OpenAI 兼容行为、微信 iLink 直连流程与远程办公指令。
 //
-// ⚠ 本文件当前不跑（放在 test/disabled/ 下，不被 packages/*/test/*.test.mjs 收到）。
-// 原先的运行方式（scripts/test.ps1 把插件放进 DSH 的 node_modules 树 + 临时 USERPROFILE）
-// 已随自制壳一起删除；为什么不能直接恢复、以及已经修好的部分，见本文件内
-// 「⚠ 本文件整体挂起」那段长注释（不要按行号找，行号会漂）。
-// 放在 disabled/ 而不是留在 test/ 里 exit 0：后者会被测试报告计成「1 pass」，
-// 等于把一份没验证任何东西的文件伪装成通过。
+// 运行方式：node --test "packages/*/test/*.test.mjs"（CI 与 `npm test` 同一入口）。
+// 本文件是脚本式（不用 node:test 的 test() 分块）：整份文件在 runner 眼里是一个用例，
+// 任何一条断言抛错都会让进程非零退出 —— 失败响亮，不需要额外的报告机制。
+//
+// 隔离：DSH_HOME 钉到 mkdtemp 出来的临时目录（见下面「必须在 import 插件之前」那段），
+// 绝不写真实 ~/.dsh；mock 的腾讯云 / OpenAI 端点都只监听 127.0.0.1 的高位端口。
 import assert from "node:assert";
 import { EventEmitter } from "node:events";
 import { createServer } from "node:http";
-import { mkdirSync, writeFileSync, utimesSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { zstdCompressSync } from "node:zlib";
+// 直接用被测包自己的实现取「确定性会话 id」，避免测试另写一套算法而漂移。
+import { createSessionMap, sessionIdFor } from "../lib/core/session.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -69,59 +70,31 @@ const mockIlink = createServer((req, res) => {
 });
 await new Promise((resolve) => mockIlink.listen(65411, "127.0.0.1", resolve));
 
-// 必须在 import 插件之前把 DSH_HOME 钉到临时目录。
-// 旧实现靠一个外部包装脚本（scripts/test.ps1）准备临时 USERPROFILE，
-// 那个脚本随自制壳一起删了；裸跑时 homedir() 就是真实用户目录，
-// 于是测试会把 session-map.json / wechat-session.json / workspace 写进**真实的 ~/.dsh**。
-// 现在由测试自己负责隔离，并且带一条拒绝执行的红线。
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-
-const ISOLATED_DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-openclaw-test-'));
-if (resolve(process.env.DSH_HOME ?? '') === resolve(join(homedir(), '.dsh'))) {
-  throw new Error('拒绝执行：DSH_HOME 指向真实的 ~/.dsh');
+// 必须在 import 插件之前把 DSH_HOME 钉到临时目录：lib/index.js 在模块加载时就用它
+// 算 BRIDGE_HOME。旧实现靠外部包装脚本（scripts/test.ps1）准备临时 USERPROFILE，那个
+// 脚本随自制壳一起删了；裸跑时 homedir() 就是真实用户目录，会把 session-map.json /
+// wechat-session.json / workspace 写进**真实的 ~/.dsh**。现在由测试自己隔离。
+const ISOLATED_DSH_HOME = mkdtempSync(join(tmpdir(), "dsh-openclaw-test-"));
+if (resolve(process.env.DSH_HOME ?? "") === resolve(join(homedir(), ".dsh"))) {
+  throw new Error("拒绝执行：DSH_HOME 指向真实的 ~/.dsh");
 }
 process.env.DSH_HOME = ISOLATED_DSH_HOME;
+if (!resolve(process.env.DSH_HOME).startsWith(resolve(tmpdir()))) {
+  throw new Error("拒绝执行：临时 DSH_HOME 没有落在 " + tmpdir() + " 下");
+}
 
-// ⚠ 本文件整体挂起（显式 skip + 非静默）。挂起理由已按实测更正，与最初写的不一样：
-//
-// 1) runner 没了：它依赖自制壳的 scripts/test.ps1 把插件放进 DSH 的 node_modules 树，
-//    并准备临时 USERPROFILE。隔离现在由上面的 mkdtemp + DSH_HOME 自己负责（已修）。
-// 2) 有两块断言跑不过：「新会话使用配置的工作目录」（第 12 块）与
-//    「agent 使用 openclaw-custom provider」（第 13 块）。
-//    注意：我先前在这里写的「断言前提不成立（池键是会话 id）」是**错的**，已推翻。
-//    核对后的事实是断言与源码读起来都对得上，所以这更像实现/ mock 接线层面的问题：
-//      · 本文件 224 行 poolMocks.set(basename(opts.meta.cwd), …) —— 池 mock 的键
-//        **就是工作目录基名**；出现 "wx-mockuser-im.wechat" 这种键，是因为默认工作目录
-//        本身按池键命名（lib/index.js:915/928 key = "wx-" + sanitizeKey(from)）。
-//      · /new 确实会解绑微信：调用点 lib/index.js:914 传的是 binds: wxBinds，
-//        处理里 620 行 binds.delete(from)。所以不是「绑定没清」。
-//      · resolveSelection(198-204) 在 customBaseURL 非空时确实返回
-//        { provider: "openclaw-custom", model: customModel }。
-//    两条断言为何仍失败：未定位。方向在 ensureAgent 的会话复用路径（sessionStore 里
-//    已有会话 id 时走 resume，可能不再按新 workspace 建目录）以及 mock 实际收到的
-//    opts.agentOptions / opts.meta 形态。**不靠猜改断言**，交给桥接插件负责人判定。
-//    把每条失败断言逐条改成「跳过」会把一份协议测试磨成什么都不验证的东西，比诚实挂起更糟。
-//
-// 我先前写过的「宿主读 cordis config、测试改 settings，槽位不一致」这个归因是错的，
-// 已推翻并从本文件删除：lib/index.js:877 每条消息都 const cfg = liveConfig() || {}，
-// liveConfig 在 832 行换成 () => scope.get()，effectiveWhitelist(180-185) 又在
-// whitelistWechat 为空时回落旧 allowlist —— 设置确实是热生效的。
-// 顺带已修好的部分（恢复时可直接用）：
-//   · 顶部隔离：不再往真实 ~/.dsh 写 session-map.json / wechat-session.json / workspace；
-//   · settleSent()：第 11/12 块原先「上一块回复还在飞就取基线」的假失败已解决；
-//   · 第 11 块白名单现在正反两向都验（白名单外忽略 + 白名单内有回复），
-//     单验拒绝等于「检查没实现」也能过。
-// 恢复办法：删掉下面的 process.exit(0)，把文件移回 test/（会被 packages/*/test/*.test.mjs 收到），
-// 并先解决上面第 2 条那两个未定位的断言。
-// 不要用「console.log + exit(0)」就地假装跳过：那样报告会计成 1 pass，等于假绿。
-process.exit(0);
+// ---- 会话映射的预置种子（必须在 import 插件之前写好）----
+// sessionStore 在模块加载时读一次 session-map.json（lib/index.js:182 sessionStore.load()），
+// 所以「重启前留下的映射」只能靠预先落盘来模拟。第 18 块用它验「映射命中 → resume 原会话」。
+const SESSION_MAP_FILE = join(ISOLATED_DSH_HOME, "openclaw-bridge", "session-map.json");
+mkdirSync(join(ISOLATED_DSH_HOME, "openclaw-bridge"), { recursive: true });
+writeFileSync(SESSION_MAP_FILE, JSON.stringify({ "wx-seeded-im.wechat": "session-seeded-1" }));
 
 // 必须在导入插件前设置，wechat.js 在模块加载时读取该环境变量
 process.env.OPENCLAW_BRIDGE_ILINK_BASE = "http://127.0.0.1:65411";
 // 用相对路径导入被测包，而不是包名：改名到 @dsh-pack/* 之后，
 // 按旧包名 self-import 会直接 ERR_MODULE_NOT_FOUND（这个测试就是那样静默失效的）。
-const mod = await import("../../lib/index.js");
+const mod = await import("../lib/index.js");
 const { name, inject, apply } = mod;
 
 const CHAT = "/openclaw-bridge/v1/chat/completions";
@@ -196,7 +169,24 @@ await new Promise((resolve) => mockOpenAi.listen(65412, "127.0.0.1", resolve));
 const routes = new Map();
 const poolMocks = new Map();
 const agentOptionsLog = [];
-let mockSettingsValue = { model: "", token: "", workspace: "", allowlist: "", customBaseURL: "", customApiKey: "", customModel: "" };
+
+// ---- 设置 mock：贴合内核的声明式 Config 语义 ----
+// 插件**没有** ctx.settings.register 这条路（内核 0.1.7-rc.1 的 SettingsForms 里就没有 register）。
+// 它读的是 apply 第二参（resolveConfig 校验过的条目 config），并在
+// settings/document-updated(ns) 时重新摊平该对象（lib/index.js 的 mountSettingsScope）。
+// 所以「设置页写回」在测试里 = 就地改同一个对象 + 触发事件；setSettings() 把这两步绑在一起。
+// ⚠ 拆开过一次（老写法每个块 `mockSettingsValue = { ...mockSettingsValue, x }` 造新对象、
+// 又没有任何事件），插件永远读不到新值，第 12/13 块因此挂起数月 —— 别退回那种写法。
+const settingsValue = { model: "", token: "", workspace: "", allowlist: "", customBaseURL: "", customApiKey: "", customModel: "" };
+const settingsListeners = new Set();
+function setSettings(patch) {
+  Object.assign(settingsValue, patch);
+  for (const fn of [...settingsListeners]) fn("openclaw-bridge"); // ns = profile 条目 id
+}
+
+// 持久化会话 id（mock 内核的 sessionPersistence.list()）：/attach 与「重启后 resume」
+// 都靠它判定某个会话 id「确实存在于持久化存储里」。
+let storedSessionIds = ["session-999"];
 
 const ctx = {
   llm: {
@@ -206,15 +196,9 @@ const ctx = {
       return dispose;
     },
   },
-  inject(deps, cb) {
-    if (Array.isArray(deps) && deps.includes("settings")) {
-      const scope = {
-        get: () => ({ ...mockSettingsValue }),
-        watch: () => () => {},
-      };
-      cb({ effect: () => () => {}, settings: { register: () => scope } });
-    }
-    return () => {};
+  on(event, fn) {
+    if (event === "settings/document-updated") settingsListeners.add(fn);
+    return () => settingsListeners.delete(fn);
   },
   webServer: {
     port: 6100,
@@ -248,7 +232,7 @@ const ctx = {
     if (key === "sessionPersistence") {
       return {
         async list() {
-          return [{ id: "session-999", meta: { cwd: "C:\\attach-ws" } }];
+          return storedSessionIds.map((id) => ({ id, meta: { cwd: "C:\\attach-ws" } }));
         },
       };
     }
@@ -259,7 +243,7 @@ const ctx = {
   },
 };
 
-const cleanup = apply(ctx);
+const cleanup = apply(ctx, settingsValue);
 
 // ---- fake http ----
 function fakeReq(method, path, { remote = "127.0.0.1", headers = {}, body = null } = {}) {
@@ -506,23 +490,24 @@ ok(Array.isArray(inject) && inject.includes("agents"), "inject 含 agents 服务
 // 语义依据 lib/core/whitelist.js:12 isAllowed —— 空列表 = 放行所有人
 // （与 lib/client.js:62 的文案一致：「两处都留空 = 允许所有发消息的人」）。
 {
-  // 先等上一块的回复落地，再取基线：不静默就取数会让晚到的帧顶掉计数（曾经的假失败成因）
-  let base = await settleSent();
-  mockSettingsValue = { ...mockSettingsValue, allowlist: "boss@im.wechat" };
+  // 基线必须先静默再取（不静默就取数会让上一块晚到的帧顶掉计数 —— 曾经的假失败成因），
+  // 但取完基线**不能再取一次**：那样会把「本不该发出的回复」吸收进基线，
+  // 断言对「白名单根本没生效」免疫（反证实测：断掉设置事件后这条照样绿）。
+  const base = await settleSent();
+  setSettings({ allowlist: "boss@im.wechat" });
 
   pendingMsgs.push(wxMsg("mockuser@im.wechat", "白名单外的消息", "ctx-evil"));
-  await sleep(1500);
-  base = await settleSent();
+  await sleep(1500); // 若真被放行，回复在这个窗口内必然到达
+  await settleSent();
   ok(sentMessages.length === base, "白名单外用户的消息被忽略（不回复）");
 
   // 反向：同一用户被加进白名单后必须真的收到回复
-  base = await settleSent();
-  mockSettingsValue = { ...mockSettingsValue, allowlist: "boss@im.wechat,mockuser@im.wechat" };
+  setSettings({ allowlist: "boss@im.wechat,mockuser@im.wechat" });
   pendingMsgs.push(wxMsg("mockuser@im.wechat", "白名单内的消息", "ctx-good"));
   await waitSent(base + 1);
   ok(sentMessages.length >= base + 1, "白名单内用户照常收到回复（证明上面的忽略不是没实现）");
 
-  mockSettingsValue = { ...mockSettingsValue, allowlist: "" };
+  setSettings({ allowlist: "" });
 }
 
 // 12) 工作目录配置：/new 后新会话使用配置的真实目录
@@ -553,7 +538,7 @@ ok(Array.isArray(inject) && inject.includes("agents"), "inject 含 agents 服务
 //     桥接插件的作者判定。见任务 #13。
 {
   const remoteWs = join(ISOLATED_DSH_HOME, "remote-office-ws");
-  mockSettingsValue = { ...mockSettingsValue, workspace: remoteWs };
+  setSettings({ workspace: remoteWs });
   const base = await settleSent(); // 先等队列静默再取基线（原假失败成因已修）
   pendingMsgs.push(wxMsg("mockuser@im.wechat", "/new", "ctx-new"));
   await waitSent(base + 1);
@@ -561,21 +546,21 @@ ok(Array.isArray(inject) && inject.includes("agents"), "inject 含 agents 服务
   pendingMsgs.push(wxMsg("mockuser@im.wechat", "远程办公的消息", "ctx-remote"));
   await waitSent(base + 2);
   ok(poolMocks.get("remote-office-ws") !== undefined, "新会话使用配置的工作目录");
-  mockSettingsValue = { ...mockSettingsValue, workspace: "" };
+  setSettings({ workspace: "" });
 }
 
 // 13) 自定义 OpenAI 兼容端点：桥接路由到 openclaw-custom provider
 {
-  mockSettingsValue = { ...mockSettingsValue, customBaseURL: "http://127.0.0.1:65412/v1", customModel: "test-model" };
+  setSettings({ customBaseURL: "http://127.0.0.1:65412/v1", customModel: "test-model" });
   const res = await chat({ model: "dsh-bridge/test-custom", messages: [{ role: "user", content: "你好" }] });
   ok(res.statusCode === 200, "自定义端点路由 200");
   const last = agentOptionsLog[agentOptionsLog.length - 1];
   ok(last && last.provider === "openclaw-custom" && last.model === "test-model", "agent 使用 openclaw-custom provider");
 
-  mockSettingsValue = { ...mockSettingsValue, customModel: "" };
+  setSettings({ customModel: "" });
   const res2 = await chat({ model: "dsh-bridge/test-custom2", messages: [{ role: "user", content: "你好" }] });
   ok(res2.statusCode === 400 && /customModel/.test(res2.body), "customBaseURL 已填而 customModel 为空时 400");
-  mockSettingsValue = { ...mockSettingsValue, customBaseURL: "", customModel: "" };
+  setSettings({ customBaseURL: "", customModel: "" });
 }
 
 // 14) OpenAiCompatAdapter 直测：文本流
@@ -635,78 +620,92 @@ ok(Array.isArray(inject) && inject.includes("agents"), "inject 含 agents 服务
   ok(caught !== null && /bad api key|AUTH/.test(String(caught?.message || "") + " " + String(caught?.code || "")), "401 映射为 AUTH 错误");
 }
 
-// 17) 会话映射持久化：创建后写入映射；/new 清除映射；/attach 持久化接管
+// 17) 会话映射持久化（落盘 ~/.dsh/openclaw-bridge/session-map.json）
+//
+// v0.8.0 的映射语义（与更早的实现不同，断言按当前实现写并标出差量）：
+//   · 只有 IM 键（wx-/feishu-）进映射；OpenAI 兼容端点按 model 名建的会话用随机 id，不落盘；
+//   · 值是「key -> 会话 id」字符串，不再带 cwd 字段；
+//   · /new 不删键，而是换一个新 id（让下一条消息开全新上下文且不再 resume 旧会话）。
+const readMap = () => JSON.parse(readFileSync(SESSION_MAP_FILE, "utf8"));
 {
-  const { sessionMapSnapshot, sessionMapReset } = mod;
-  sessionMapReset();
-  const res = await chat({ model: "dsh-bridge/map-a", messages: [{ role: "user", content: "你好" }] });
-  ok(res.statusCode === 200, "map-a 首次对话 200");
-  const snap1 = sessionMapSnapshot();
-  ok(snap1["dsh-bridge-map-a"] && /^session-/.test(snap1["dsh-bridge-map-a"].sessionId), "创建后映射记录 sessionId");
-  const base = sentMessages.length;
-  pendingMsgs.push(wxMsg("mockuser@im.wechat", "/new", "ctx-new-map"));
+  const base = await settleSent();
+  pendingMsgs.push(wxMsg("mapuser@im.wechat", "映射落盘的消息", "ctx-map"));
   await waitSent(base + 1);
-  ok(!sessionMapSnapshot()["wx-mockuser-im.wechat"], "/new 清除该微信用户的持久化映射");
-  pendingMsgs.push(wxMsg("mockuser@im.wechat", "/attach session-999", "ctx-attach-map"));
+  const sid1 = readMap()["wx-mapuser-im.wechat"];
+  ok(typeof sid1 === "string" && /^dsh-im-[0-9a-f]{12}$/.test(sid1), "首条消息后 IM 键与会话 id 落盘（" + sid1 + "）");
+
+  pendingMsgs.push(wxMsg("mapuser@im.wechat", "/new", "ctx-map-new"));
   await waitSent(base + 2);
-  const snap2 = sessionMapSnapshot();
-  ok(snap2["wx-mockuser-im.wechat"] && snap2["wx-mockuser-im.wechat"].sessionId === "session-999", "/attach 持久化接管会话 id");
-  sessionMapReset();
+  const sid2 = readMap()["wx-mapuser-im.wechat"];
+  ok(typeof sid2 === "string" && sid2 !== sid1, "/new 换新会话 id（旧 " + sid1 + " → 新 " + sid2 + "）");
+
+  // /attach 只做进程内绑定（binds.set），不碰映射文件 —— 断言锁的是「不会被悄悄改写成
+  // session-999」。代价（重启后接管关系丢失）见文件末尾「已知取舍」。
+  pendingMsgs.push(wxMsg("mapuser@im.wechat", "/attach session-999", "ctx-map-attach"));
+  await waitSent(base + 3);
+  ok(readMap()["wx-mapuser-im.wechat"] === sid2, "/attach 不改写映射文件（接管是进程内绑定）");
 }
 
 // 18) 重启恢复：映射命中 → agents.resume 原会话（不新建）
+//
+// 模拟方式：文件顶部预置了 { "wx-seeded-im.wechat": "session-seeded-1" }，且把
+// session-seeded-1 放进 mock 的 sessionPersistence.list() —— 即「上一进程写了映射，
+// 内核也真的存着这个会话」。新进程的第一条消息必须 resume 它。
+// 这条判据能区分两种实现：若不读映射，插件会按确定性算法算出另一个 id
+// （sessionIdFor("wx-seeded-im.wechat")），它不在持久化列表里 → 走新建，
+// 回复会是 "wx-seeded-im.wechat 第1轮" 而不是 "attached-session-seeded-1 第1轮"。
 {
-  const { sessionMapSnapshot, sessionMapSet, sessionMapReset } = mod;
-  sessionMapReset();
-  sessionMapSet("dsh-bridge-map-resume", "session-seeded-1", "C:\\mock-cwd");
-  const res = await chat({ model: "dsh-bridge/map-resume", messages: [{ role: "user", content: "继续" }] });
-  ok(res.statusCode === 200 && /attached-session-seeded-1/.test(res.body), "映射命中恢复原会话（resume session-seeded-1）");
-  ok(sessionMapSnapshot()["dsh-bridge-map-resume"] !== undefined, "恢复后映射仍在");
-  sessionMapReset();
+  const base = await settleSent();
+  storedSessionIds.push("session-seeded-1");
+  pendingMsgs.push(wxMsg("seeded@im.wechat", "重启后继续", "ctx-seeded"));
+  await waitSent(base + 1);
+  ok(/attached-session-seeded-1/.test(lastSentText()), "映射命中 → resume session-seeded-1（不新建）");
+  ok(sessionIdFor("wx-seeded-im.wechat") !== "session-seeded-1", "确定性 id 与种子 id 不同（证明上一条真的读了映射）");
 }
 
-// 19) 扫描恢复：无映射（老版本升级路径）→ 按工作区扫描最近会话并 resume
+// 19) 无映射（老版本升级 / 映射文件丢失）→ 按确定性会话 id 续上同一段上下文
+//
+// v0.8.0 用确定性 id 取代了早先的「扫描 sessions 目录按 mtime 取最近会话」：
+// IM 键的会话 id 恒为 sessionIdFor(key)，所以映射丢了也照样能 resume 回来 ——
+// 不需要扫盘，也不需要猜「哪个是最近的」。这里锁的就是这条替代路径。
 {
-  const { sessionMapSnapshot, sessionMapReset, findLatestSessionForCwd } = mod;
-  sessionMapReset();
-  const tmpDsh = ISOLATED_DSH_HOME; // 文件顶部已钉死到临时目录，绝不落到真实 ~/.dsh
-  process.env.DSH_HOME = tmpDsh;
-  const ws = join(tmpDsh, "openclaw-bridge", "workspace", "dsh-bridge-scan-b");
-  mkdirSync(ws, { recursive: true });
-  const sessRoot = join(tmpDsh, "sessions", "proj-scan");
-  const mkSess = (dir, id, mtime) => {
-    const d = join(sessRoot, dir);
-    mkdirSync(d, { recursive: true });
-    const head = JSON.stringify({ type: "session", version: 0, id, cwd: ws, delegationDepth: 0 });
-    const file = join(d, "session.jsonl.zstd");
-    writeFileSync(file, zstdCompressSync(Buffer.from(head + "\n", "utf8")));
-    utimesSync(file, new Date(mtime), new Date(mtime));
-  };
-  mkSess("sess-old", "session-scan-old", Date.now() - 60000);
-  mkSess("sess-new", "session-scan-recovered-1", Date.now() - 1000);
-  const found = findLatestSessionForCwd(ws);
-  ok(found === "session-scan-recovered-1", "扫描按 mtime 取最近会话（" + found + "）");
-  const res = await chat({ model: "dsh-bridge/scan-b", messages: [{ role: "user", content: "在吗" }] });
-  ok(/attached-session-scan-recovered-1/.test(res.body), "无映射时扫描恢复最近会话");
-  ok(sessionMapSnapshot()["dsh-bridge-scan-b"] !== undefined, "扫描恢复后写入映射");
-  sessionMapReset();
+  const base = await settleSent();
+  const sid = sessionIdFor("wx-cold-im.wechat");
+  storedSessionIds.push(sid); // 「内核持久化里还留着这个会话」
+  pendingMsgs.push(wxMsg("cold@im.wechat", "丢了映射也要续上", "ctx-cold"));
+  await waitSent(base + 1);
+  ok(lastSentText().includes("attached-" + sid), "无映射 → 按确定性 id resume（" + sid + "）");
+  ok(readMap()["wx-cold-im.wechat"] === sid, "resume 后补写映射，下次不再依赖算法");
 }
 
-// 20) sessionMapSet/Delete 覆盖更新与删除
+// 20) createSessionMap：覆盖 / 删除 / 落盘重载 / 损坏文件容错（重启恢复的存储基础）
 {
-  const { sessionMapSet, sessionMapDelete, sessionMapSnapshot, sessionMapReset } = mod;
-  sessionMapReset();
-  sessionMapSet("k1", "s1", "c1");
-  sessionMapSet("k1", "s1b", "c1");
-  ok(sessionMapSnapshot()["k1"].sessionId === "s1b", "同 key 覆盖更新");
-  sessionMapDelete("k1");
-  ok(sessionMapSnapshot()["k1"] === undefined, "删除后映射无该 key");
-  sessionMapReset();
+  const file = join(ISOLATED_DSH_HOME, "map-core-test.json");
+  const m = createSessionMap(file);
+  m.load();
+  m.set("k1", "s1");
+  m.set("k1", "s1b");
+  ok(m.get("k1") === "s1b", "同 key 覆盖更新");
+  m.remove("k1");
+  ok(m.get("k1") === undefined, "删除后映射无该 key");
+  m.set("k2", "s2");
+  const reloaded = createSessionMap(file);
+  reloaded.load();
+  ok(reloaded.get("k2") === "s2", "落盘后重载仍在");
+  writeFileSync(file, "{ 这不是 JSON");
+  ok(createSessionMap(file).load().size === 0, "损坏文件回落到空映射（不炸）");
 }
 
+// ---- 已知取舍（不写成断言，留给桥接插件负责人判定）----
+// /attach 的接管关系只活在进程内：重启后该用户回到映射里的 id（或确定性 id），
+// 不会回到被接管的那个会话。更早的实现把 attach 结果也写进映射（重启后仍接管）。
+// 本文件不锁这一条 —— 锁「重启后仍接管」现在会红（当前实现没做），
+// 锁「重启后必然丢失」则等于把缺陷写成契约。
 console.log("\nall " + passed + " checks passed");
 
 cleanup();
 mockIlink.close();
 mockOpenAi.close();
+// 强制退出：iLink 客户端的 keep-alive 连接可能让事件循环不空转结束。
+// 这不会掩盖失败 —— 任何断言失败都在到达这里之前就已抛错（runner 记 fail 1）。
 setTimeout(() => process.exit(0), 800);
