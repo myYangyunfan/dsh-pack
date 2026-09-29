@@ -2660,7 +2660,14 @@ window.__ModuleLoader__.load({
 			const host = document.createElement("span");
 			host.setAttribute(STRIP_HOST_ATTR, "");
 			host.className = "dsh-strip-host";
-			strip.insertBefore(host, strip.querySelector("[data-dockkit-split-button]"));
+			const splitBtn = strip.querySelector("[data-dockkit-split-button]");
+			if (splitBtn !== null && splitBtn.parentElement === strip) {
+				strip.insertBefore(host, splitBtn);
+			} else if (splitBtn !== null && splitBtn.parentElement !== null) {
+				splitBtn.parentElement.insertBefore(host, splitBtn);
+			} else {
+				strip.appendChild(host);
+			}
 			return host;
 		}
 		/**
