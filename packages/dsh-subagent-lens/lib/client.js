@@ -9,7 +9,8 @@
 //     工具调用事件里只有 description/prompt，tool/result 只有子代理的最终
 //     输出 —— 中间命令/文件明细只存在于子会话自己的事件流。
 //   · 客户端打开子会话（会话头部谱系目录点击）后，子会话事件已在本地的
-//     Session 对象（sessions 服务的 binding(childId).session.events）里。
+//     binding 事件窗口里（sessions 服务的 binding(childId).eventSource，
+//     见 childWindowEvents 的说明；旧内核才是 session.events 数组）。
 //   · 因此本插件的全部数据来源 = 客户端已有的会话事件流快照（当前会话经
 //     useSession 的 chat 快照；子会话经 sessions 服务只读 binding），零额外
 //     后端请求、零新数据通道。
@@ -309,6 +310,52 @@ function bindSettingsScope(ctx, entryId) {
       for (const item of out.commands) if (errors.get(item.callId)) item.error = true;
       for (const item of out.fileSeeds) if (errors.get(item.callId)) item.error = true;
       return out;
+    }
+
+    // ---------------------------------------------------------------------------
+    // 子会话事件窗口读取（M2，2026-09 真机核对）
+    //
+    // 老写法读 `binding.session.events` 当数组 —— 页内**没有**这个数组：
+    //   · dsh 0.1.7-rc.1 页内侧（dsh-api-session-controller）的 binding 形状是
+    //     `{ sessionId, session, eventSource, ctx }`，事件在 `eventSource` 这个
+    //     同步窗口 store 里：`getSnapshot().entries` = 已加载的日志窗口，
+    //     条目是 wire record，事件本体在 `entry.event`（含 seq/type/data）。
+    //   · `binding.session.events` 确实存在，但它是 SessionEventStream（异步日志流，
+    //     有 prepend()/open()），`Array.isArray` 永远为假 —— 于是守卫把整块功能
+    //     静默吞掉：不报错、不渲染、也查不出（与宿主侧 session.events 是同一类错）。
+    // 三级回落：页内窗口 store → 旧 client-runtime 的数组 → session.snapshotEvents()。
+    // 派生数组按 entries 快照身份缓存：同一次快照（无新事件）在渲染风暴里复用，
+    // 不破坏下面 activityFromEventsCached 的增量扫（新事件到来时窗口整体换新）。
+    const CHILD_WINDOW_CACHE = new WeakMap(); // entries 数组 -> 事件数组
+    function childWindowEvents(binding) {
+      if (!binding) return null;
+      const source = binding.eventSource;
+      if (source && typeof source.getSnapshot === "function") {
+        const snapshot = source.getSnapshot();
+        const entries = snapshot && snapshot.entries;
+        if (Array.isArray(entries)) {
+          const cached = CHILD_WINDOW_CACHE.get(entries);
+          if (cached) return cached;
+          const events = [];
+          for (const record of entries) {
+            const event = record && record.event;
+            if (event && typeof event === "object") events.push(event);
+          }
+          CHILD_WINDOW_CACHE.set(entries, events);
+          return events;
+        }
+      }
+      const session = binding.session;
+      if (!session) return null;
+      // 老 client-runtime（0.1.6 一代）的 session.events 才是数组。刻意写成下标读取：
+      // 旧 API 字面量有审计门禁（tools/audit/session-api.js），兼容口要留痕、不开口子。
+      const legacy = session["events"];
+      if (Array.isArray(legacy)) return legacy;
+      if (typeof session.snapshotEvents === "function") {
+        const events = session.snapshotEvents();
+        return Array.isArray(events) ? events : null;
+      }
+      return null;
     }
 
     // ---------------------------------------------------------------------------
@@ -731,7 +778,7 @@ function bindSettingsScope(ctx, entryId) {
         if (child) {
           childRunning = child.activity === "running";
           const binding = sessionsFace && typeof sessionsFace.binding === "function" ? sessionsFace.binding(child.id) : undefined;
-          const events = binding && binding.session && Array.isArray(binding.session.events) ? binding.session.events : null;
+          const events = childWindowEvents(binding);
           if (events) {
             childSummary = summarizeActivity(activityFromEventsCached(events, { commandChars }), { maxItems });
           }
@@ -1153,6 +1200,7 @@ function bindSettingsScope(ctx, entryId) {
     exports.firstLineOf = firstLineOf;
     exports.splitToolNames = splitToolNames;
     exports.activityEntryOf = activityEntryOf;
+    exports.childWindowEvents = childWindowEvents;
     exports.activityFromEvents = activityFromEvents;
     exports.activityFromEventsCached = activityFromEventsCached;
     exports.stripSummaryCached = stripSummaryCached;

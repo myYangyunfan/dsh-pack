@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   static:
-    name: 静态审计（6 项门禁）
+    name: 静态审计（8 项门禁）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,5 +1,5 @@
 {
-  "runtimeVersion": "0.1.7-rc.1",
+  "runtimeVersion": "0.2.0-rc.1",
   "source": "@deepseek-ai/dsh",
-  "notes": "官方桌面客户端 44.0.0 内置内核；compat-gate 用它做唯一运行时版本"
+  "notes": "官方桌面客户端 44.0.0 (桌面端 0.2.0) 内置内核；compat-gate 用它做唯一运行时版本"
 }

@@ -198,6 +198,72 @@ function loadRawTiers(repoRoot = REPO_ROOT) {
   }
 }
 
+/**
+ * 元包依赖表 ↔ 自装载成员的漂移判据（P0，纯函数，给测试直接喂合成输入）。
+ *
+ * 为什么这是元包**唯一能离线把守**的那半条契约：元包的传递依赖不会成为 bundle
+ * （实测：装了元包，它的依赖既没进 bundles、行也没组合，而且不报错），所以「哪些
+ * 包会被装进来」完全由这份 dependencies 决定，而「它们的行长什么样」由生成出来的
+ * 补丁层决定（后者已有逐字节门禁）。于是 dependencies 的三种漂移各有真实伤害：
+ *   · 少一个成员 → 用户装完 all，那个插件根本没进 node_modules，它那份补丁层的行
+ *     import 不到 → did not activate（而且没人会想到去查元包的依赖表）；
+ *   · 范围写旧了 → 用户装到**旧版本代码**，界面显示装好了。这不是假设：本地预览
+ *     registry 那次就是「清单是新的、pnpm 按旧 tarball 解析」，看着像功能没生效；
+ *   · 写成精确版本 → 之后的补丁修复永远送不出去（范围不含新版本时 pnpm 直接装不上：
+ *     实测 `The latest release of @dsh-pack/dsh-auto-compact is "0.1.0"`（要 ^0.1.1））。
+ * 规范形状就是 changesets 自动同步的那一种：`^<成员当前版本>`；别的写法一律报 error。
+ *
+ * @param {object|null} metaManifest 元包（目录名 meta-*）的 package.json
+ * @param {Array<{dir:string,name:string,version:string}>} members 除元包外的自装载包
+ * @returns {Array<{kind:string,message:string}>}
+ */
+function findMetaDepDrift(metaManifest, members) {
+  const drift = [];
+  if (!metaManifest || typeof metaManifest !== 'object') {
+    drift.push({ kind: 'meta-manifest', message: '元包 package.json 读不出来，依赖漂移无法判定' });
+    return drift;
+  }
+  const list = (Array.isArray(members) ? members : []).filter((m) => m && typeof m.name === 'string' && m.name);
+  const deps = metaManifest.dependencies && typeof metaManifest.dependencies === 'object' ? metaManifest.dependencies : {};
+  const byName = new Map(list.map((m) => [m.name, m]));
+
+  for (const [name, range] of Object.entries(deps)) {
+    const member = byName.get(name);
+    if (!member) {
+      drift.push({
+        kind: 'not-a-member',
+        message:
+          `元包依赖 ${name}@${String(range)} 不是自装载成员（没有 dsh.bundle.patch，或包根下没有可寻址的 id）：` +
+          `装进来不会挂载任何东西。元包的依赖表只该列成员——能力库（如 host-capabilities）另有成员在构建期内联`,
+      });
+      continue;
+    }
+    if (range !== `^${member.version}`) {
+      const harm =
+        range === member.version
+          ? `它把版本锁死了：之后的补丁修复永远送不出去（pnpm 只认这一个版本）`
+          : `范围覆盖不到当前版本 ${member.version} → 用户装到旧代码（清单是新的、解析是旧的），或直接装不上`;
+      drift.push({
+        kind: 'range',
+        message:
+          `元包依赖 ${name} 的范围是 ${String(range)}，但成员当前版本是 ${member.version}：` +
+          `规范形状是 ^${member.version}（changesets 自动同步的形状）。${harm}`,
+      });
+    }
+  }
+
+  for (const m of list) {
+    if (Object.prototype.hasOwnProperty.call(deps, m.name)) continue;
+    drift.push({
+      kind: 'missing',
+      message:
+        `自装载成员 ${m.name}（${m.dir}）不在元包依赖表里：元包的传递依赖不会成为 bundle，` +
+        `用户装完元包这个插件根本不会进 node_modules，它那份补丁层的行 import 不到 → did not activate`,
+    });
+  }
+  return drift;
+}
+
 function run(ctx = {}) {
   const pack = ctx.pack || detectPackRoot();
   const findings = [];
@@ -208,6 +274,8 @@ function run(ctx = {}) {
   const packages = pack.packages;
   const tierMap = ctx.tierMap === undefined ? loadTierMap() : ctx.tierMap;
   const idOwners = new Map(); // id -> [包相对路径]
+  const tierMetas = []; // 元包（目录 meta-*）
+  const mountable = []; // 除元包外的自装载包 = 元包依赖表应当列出的那些
 
   for (const pkg of packages) {
     const label = pkg.label;
@@ -219,6 +287,11 @@ function run(ctx = {}) {
     const isMeta = isMetaPackage(pkg);
     const isTier = isTierMeta(pkg);
     const decl = bundlePatchDecl(pkg.manifest);
+
+    if (isTier) tierMetas.push(pkg);
+    else if (!isMeta && decl !== undefined && decl !== null) {
+      mountable.push({ dir: pkg.dirname, name, version: pkg.manifest.version });
+    }
 
     if (decl === undefined || decl === null) {
       findings.push(
@@ -321,6 +394,15 @@ function run(ctx = {}) {
     }
   }
 
+  // 元包依赖表：元包契约里唯一离线可验的那一半（补丁层那半有逐字节门禁）。
+  // 判据见 findMetaDepDrift —— 少一个成员/范围写旧/列了非成员，都是静默失效或装到旧代码。
+  for (const meta of tierMetas) {
+    if (!meta.manifest) continue;
+    for (const d of findMetaDepDrift(meta.manifest, mountable)) {
+      findings.push(finding(CHECK, 'error', d.message, meta.label, { kind: d.kind }));
+    }
+  }
+
   // 同 id 多声明：只有**指向不同包**才是真危险（后写的层按 id 整行抢走别人的条目，
   // issue #104 的双登记启动崩溃属此类）。
   //
@@ -419,6 +501,7 @@ module.exports = {
   loadTierMap,
   loadRawTiers,
   findTierOverlaps,
+  findMetaDepDrift,
   META_PACKAGES,
   isMetaPackage,
   companionOf,

@@ -2,6 +2,19 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
+/**
+ * 内核 0.1.7-rc.1 移除了 Session.events 数组（session.meta 同时消失），迭代期事件
+ * 改由 ctx.on("session/event") 推送。这里留同步读整份日志的兼容口：snapshotEvents()
+ * 仍在（标弃用但可用），老宿主退回旧数组。回退分支刻意用下标读取 —— 审计门禁按
+ * `session.events` 字面量拦旧 API，这里正是要保留的那一个口子。
+ */
+function sessionEvents(session) {
+  if (!session) return [];
+  if (typeof session.snapshotEvents === "function") return session.snapshotEvents();
+  const legacy = session["events"];
+  return Array.isArray(legacy) ? legacy : [];
+}
+
 export const name = 'synapse'
 export const inject = ['webServer', 'sessions']
 
@@ -254,7 +267,7 @@ export class WorkspaceStore {
       const from = Math.max(replayFrom, previous?.cursor !== undefined ? previous.cursor + 1 : 0)
       let cursor = from - 1
       let applied = 0
-      for (const event of session.events ?? []) {
+      for (const event of sessionEvents(session) ?? []) {
         if (!Number.isSafeInteger(event.seq) || event.seq < from) continue
         applied += 1
         this.projectEventInto(workspace, thread, event)

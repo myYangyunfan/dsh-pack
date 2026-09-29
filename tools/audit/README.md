@@ -65,7 +65,8 @@ bundle，而 `parseDshClient` 不校验取值，一个「顺手改成 desktop」
 实测：`dsh plugin add <pkg>` 只把包名写进 `dsh.profile.bundles` 与 `dependencies`，
 真正插入 loader 行的是**包自己的 `cordis.patch.yml`**（由 `package.json → dsh.bundle.patch` 指过去），
 profile 那份补丁层全程保持 `[]`。没有 `dsh.bundle.patch` 的包，管理器直接判 `not-bundle` 并
-**回滚整次安装**。目前 40 个包里只有 18 个声明了它——所以这一项一定是红的。
+**回滚整次安装**（迁移期只有 18 个包声明，所以那时这一项恒红；现在 33 个自装载包全部声明，
+唯一例外是纯能力库 `host-capabilities`）。
 检查内容：声明存在、形态是字符串或有序字符串数组、每个路径都落在包内、文件能解析成
 **YAML 数组**（顶层不是数组 = cordis 的 entry-list 方言读不出来）、数组里有一个 `insert` 块
 且行内 `name` 等于本包包名（或其文档化子路径，如 `graph-memory/dsh`）、每行都有 `id`；
@@ -74,6 +75,15 @@ profile 那份补丁层全程保持 `[]`。没有 `dsh.bundle.patch` 的包，�
 bundle patch 声明的 id 一致——issue #104 就是两处 id 漂移让自愈的 `dropBlocksByIds` 永不命中、
 残留 insert 块双登记导致启动崩溃。`META_PACKAGES`（现在是 `host-capabilities`）是唯一的
 豁免口：纯能力库没有 host 半边，不该挂载。
+
+元包（目录 `meta-*`）另有两组判据：它按设计不插自己的行，插的是成员行，所以
+① 一条 `insert` 都没有 = 空壳分层，报 error；② `dependencies` 必须恰好等于
+「全部自装载成员 × `^<成员当前版本>`」（`findMetaDepDrift`）。第 ② 条是元包契约里唯一
+能离线验的那一半：元包的传递依赖不会成为 bundle，所以少列一个成员 = 那个插件装完元包
+根本不进 `node_modules`、它那份补丁层的行 `did not activate`；范围写旧 = 用户装到旧代码
+（本地预览 registry 那次的形状）；写精确版本 = 之后的补丁修复永远送不出去。真机实测：
+元包依赖指向未发布版本时 pnpm 报
+`The latest release of @dsh-pack/dsh-auto-compact is "0.1.0"`（元包要 `^0.1.1`）整单失败。
 
 ## dep-closure —— 发布物的裸依赖闭包
 
@@ -95,10 +105,10 @@ registry 构造函数遇到「声明了 dsh.client 但没有 `./client` 出口�
 `StartupError` → 整个应用起不来。更糟的是致命启动失败之后 `sanitizeProfile` 会把 profile 的
 补丁层改名成 `.bak-<时间戳>` 并回滚到原始 bundle 清单——**整个插件包被抹掉**，用户甚至不知道
 自己装了东西。所以这条是 P0，且反方向（有 `./client` 出口却没声明 `dsh.client`，白发布一份
-产物）同样报 error。其余几条：`private: true`（npm publish 直接拒绝，当前 19 个包中枪）、
+产物）同样报 error。其余几条：`private: true`（npm publish 直接拒绝）、
 缺 `license`、缺 `files` 或 `files` 里写 `node_modules`（没有允许清单时 npm 会把 `src/`、`test/`、
-`node_modules` 残留，以及 `sourcesContent` 里内嵌了完整上游 TypeScript 的 `.map` 一起打出去，
-当前 24 个包没有清单）、`main` / `exports['.']` 缺失或落不到真实文件、`dsh.bundle.patch` 缺失
+`node_modules` 残留，以及 `sourcesContent` 里内嵌了完整上游 TypeScript 的 `.map` 一起打出去）、
+`main` / `exports['.']` 缺失或落不到真实文件、`dsh.bundle.patch` 缺失
 （结构细节归 self-mount）、`repository.url` 指向 `deepseek-ai/deepseek-harness`（本包是插件包，
 不是内核分叉，指错会让 issue 流向官方上游）。
 

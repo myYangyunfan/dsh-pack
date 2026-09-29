@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/dsh-openclaw-bridge",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "DSH plugin bridging WeChat / Feishu official channels into DSH agent sessions, with an IM bridge settings section in the DSH settings page (QQ provided by the official @tencent-connect/dsh-qqbot)",
   "type": "module",
   "main": "lib/index.js",

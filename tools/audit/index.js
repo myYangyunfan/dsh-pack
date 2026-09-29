@@ -23,6 +23,7 @@ const CHECKS = [
   { name: 'self-mount', module: './self-mount' },
   { name: 'dep-closure', module: './dep-closure' },
   { name: 'settings-api', module: './settings-api' },
+  { name: 'session-api', module: './session-api' },
   { name: 'publish-readiness', module: './publish-readiness' },
   { name: 'syntax', module: './syntax' },
 ];

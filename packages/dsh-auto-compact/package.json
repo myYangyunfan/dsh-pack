@@ -1,7 +1,7 @@
 {
   "name": "@dsh-pack/dsh-auto-compact",
   "description": "自动压缩（DSH Desktop 配套插件）：监听会话 contextPressure 投影，接近上下文上限（默认 80%，可调）时自动发送 /compact —— 默认开启，对话不再撑爆上下文",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

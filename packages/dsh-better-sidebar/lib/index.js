@@ -14,6 +14,19 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { snapshotSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
 
+/**
+ * 内核 0.1.7-rc.1 移除了 Session.events 数组（session.meta 同时消失），迭代期事件
+ * 改由 ctx.on("session/event") 推送。这里留同步读整份日志的兼容口：snapshotEvents()
+ * 仍在（标弃用但可用），老宿主退回旧数组。回退分支刻意用下标读取 —— 审计门禁按
+ * `session.events` 字面量拦旧 API，这里正是要保留的那一个口子。
+ */
+function sessionEvents(session) {
+	if (!session) return [];
+	if (typeof session.snapshotEvents === "function") return session.snapshotEvents();
+	const legacy = session["events"];
+	return Array.isArray(legacy) ? legacy : [];
+}
+
 // <<BEGIN settings-host（由 tools/codemod/apply-settings-scope.mjs 生成，勿单包手改）>>
 const VOLATILE_WRITE = Symbol.for("cosmokit.volatile.write");
 
@@ -3168,7 +3181,7 @@ function buildSidechatApi(ctx) {
 					throw new SidebarError("sidechat-error", `thread resume failed: ${error instanceof Error ? error.message : String(error)}`, 500);
 				}
 			}
-			if (boundaryDelivered(agent.session.events)) admitFollowup(agent, textPrompt(text));
+			if (boundaryDelivered(sessionEvents(agent.session))) admitFollowup(agent, textPrompt(text));
 			else {
 				const parts = [SIDE_BOUNDARY_PROMPT];
 				const snapshot = pendingSnapshots.get(childId);

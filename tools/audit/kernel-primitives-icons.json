@@ -1,7 +1,7 @@
 {
-  "_meta": "由 extract-kernel-snapshots.mjs 生成，勿手改",
-  "kernelVersion": "0.1.7-rc.1",
-  "count": 186,
+  "_meta": "由 extract-desktop-snapshots.mjs 生成，勿手改",
+  "kernelVersion": "0.2.0-rc.1",
+  "count": 188,
   "icons": [
     "IconAgentPresetOutlineMedium",
     "IconAgentPresetOutlineRegular",
@@ -11,6 +11,8 @@
     "IconApiOutlineRegular",
     "IconArchiveCheckOutlineMedium",
     "IconArchiveCheckOutlineRegular",
+    "IconArchiveOffOutlineMedium",
+    "IconArchiveOffOutlineRegular",
     "IconArchiveOutlineMedium",
     "IconArchiveOutlineRegular",
     "IconBranchOutlineMedium",

@@ -37,7 +37,7 @@ DSH_KERNEL_BIN=/tmp/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js \
 | `packages/host-capabilities/` | 宿主能力探针，构建期内联库，不是 bundle |
 | `tools/tiers.json` | 分层 → 成员清单，唯一事实源 |
 | `tools/build-meta-patches.mjs` | 生成各元包补丁层（幂等，重跑必须逐字节一致） |
-| `tools/audit/` | 6 项离线静态门禁 |
+| `tools/audit/` | 8 项离线静态门禁 |
 | `tools/itest/` | 真装真组合的集成校验（J1 组合 / J2 tarball / J3 构建脚本放行） |
 
 当前分层：`core`(18)、`plus`(9)、`knowledge`(2)、`pocket`、`bridge`、`compaction`。

@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/dsh-basics-panel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH Desktop built-in basics panel (upstream: yxsj245/dsh-Basics-Panel, MIT): a native Settings panel for visualizing and managing MCP servers, skills and rules with a modular feature registry. · DSH Desktop 内置基础能力面板：可视化并管理 MCP 服务器、技能与规则（含空态「新建」入口）。",
   "type": "module",
   "main": "lib/index.js",

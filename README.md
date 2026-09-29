@@ -26,23 +26,34 @@
 
 ## 怎么装
 
-在官方客户端内 **设置 → 插件**，按包名安装；或者直接对这个会话说
-「用 install_bundle 装 `@dsh-pack/all`」让 agent 代你装。
+在官方客户端内 **设置 → 插件** 的「安装插件」输入框中，支持以下两种便捷安装方式：
+
+### 方式 A（推荐）：直接粘贴 Git 仓库链接
+
+在输入框中直接粘贴并安装：
+```text
+https://github.com/myYangyunfan/dsh-pack.git
+```
+- **无需等待 npm 发版**：直接拉取最新代码，一键装齐全部 32 个插件。
+- 仓库根目录已内置自装载描述与聚合补丁（`cordis.patch.yml`），由客户端直接识别装配。
+
+### 方式 B：按 npm 包名安装（`@dsh-pack/all`）
+
+在输入框输入 `@dsh-pack/all` 即可一键装齐全部 32 个插件。
+或直接对会话中的 Agent 说：「用 install_bundle 装 `@dsh-pack/all`」。
 
 > **命令行装不了。** `dsh plugin --profile desktop …` 会被官方 CLI 硬拦
 > （`profile "desktop" is managed exclusively by the Electron application`）——
 > 那是官方客户端自己独占的 profile。`dsh plugin` 只对自定义 profile 有效，
 > 那是开发/CI 用的路子，不是给官方客户端装插件的路子。
 
-### 一个包装齐：`@dsh-pack/all`
+### ⚠️ 安装重要提示
 
-**只装这一个包**，32 个插件就都在了。
-
-> ⚠ **装了 `all` 就不要再从插件页单独装其中的某一个插件。**
+> ⚠ **装了整合包（无论是 Git 链接还是 `all`）就不要再单独装其中的单个成员插件。**
 > 每个插件本来都能单装（各自带一份挂载声明），而内核的补丁 `insert` 是按行追加、
-> 不按 id 去重的：同一个插件被 `all` 和它自己各插一次，就会被**装配两次**，
-> 第二次注册路由时报 `webserver: duplicate exact route`，那一项就不会激活。
-> 想要小集合，就**别装 `all`**，只按下面的用途分组挑单个插件装。
+> 不按 id 去重的：同一个插件被插入两次就会被**装配两次**，
+> 第二次注册路由时报 `webserver: duplicate exact route`，导致该项无法激活。
+> 想要小集合，就**别装整合包**，只按下面的用途分组挑单个插件装。
 
 ### 按用途分组（挑着用，不是可叠加的层）
 
@@ -144,7 +155,7 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 
 ```bash
 pnpm install
-node tools/audit/index.js                      # 6 项静态门禁，发布前必须绿
+node tools/audit/index.js                      # 8 项静态门禁，发布前必须绿
 node tools/build-meta-patches.mjs              # 由成员补丁层重新生成 meta-all 的补丁层
 node tools/itest/tier-overlap-proof.mjs        # 取证：元包同装会不会把成员插两次
 node --test "packages/*/test/*.test.js"        # 单测

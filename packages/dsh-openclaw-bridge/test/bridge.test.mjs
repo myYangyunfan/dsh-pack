@@ -103,27 +103,47 @@ const WX_STATUS = "/openclaw-bridge/wechat/status";
 const WX_LOGIN = "/openclaw-bridge/wechat/login";
 
 // ---- mock agent：followup 后异步产生一轮回复 ----
+//
+// ⚠ 这里刻意**不提供** session.events —— 内核 0.1.7-rc.1 的 Session 里没有这个数组，
+// 事件只能经 ctx.on("session/event") 订阅（内核自己的 headless 投影、agent-loop 都这么读）。
+// 旧实现直接遍历 agent.session.events，配合「mock 里有这个数组」的假形状一路绿灯，
+// 真机上却是整条 chat 链路 500（"agent.session.events is not iterable"，2026-09-26 实测）。
+// 谁把实现回退成扫数组、或"顺手"给 mock 补回 events，下面第 0 条形状守卫与协议块都会红。
+const sessionEventListeners = new Set(); // ctx.on("session/event") 的订阅者（= 插件）
+
+function emitSessionEvent(session, event) {
+  for (const fn of [...sessionEventListeners]) {
+    // 内核同款：单个订阅者抛错只记日志，不影响 append（dsh-session invokeContainedSessionObservers）
+    try { fn(session, event); } catch { /* 忽略 */ }
+  }
+}
+
 function makeMockAgent(label) {
-  const events = [];
+  const log = [];
   let followupCalls = 0;
+  const session = {
+    id: "session-" + label,
+    get seq() { return log.length; },
+    // 内核 0.1.7-rc.1：cwd 在 session.header 上（session.meta 已随 Session.events 一起消失）。
+    header: { cwd: "mock-cwd" },
+  };
+  const append = (type, data) => {
+    const event = { type, seq: log.length, data, time: Date.now() };
+    log.push(event);
+    emitSessionEvent(session, event);
+    return event;
+  };
   const agent = {
-    session: {
-      id: "session-" + label,
-      get seq() { return events.length; },
-      events,
-      meta: { cwd: "mock-cwd" },
-    },
+    session,
     followup(msg) {
       followupCalls += 1;
-      events.push({ seq: events.length, type: "user/message", data: msg });
-      events.push({ seq: events.length, type: "turn/start", data: {} });
+      append("user/message", msg);
+      append("turn/start", {});
       setTimeout(() => {
-        events.push({
-          seq: events.length,
-          type: "assistant/message",
-          data: { message: { content: [{ type: "text", text: "[" + label + " 第" + followupCalls + "轮] 你好，我是桥接的 DSH agent。" }] } },
+        append("assistant/message", {
+          message: { content: [{ type: "text", text: "[" + label + " 第" + followupCalls + "轮] 你好，我是桥接的 DSH agent。" }] },
         });
-        events.push({ seq: events.length, type: "turn/end", data: { reason: { kind: "completed" } } });
+        append("turn/end", { reason: { kind: "completed" } });
       }, 40);
     },
     whenIdle() { return new Promise((r) => setTimeout(r, 90)); },
@@ -197,8 +217,15 @@ const ctx = {
     },
   },
   on(event, fn) {
-    if (event === "settings/document-updated") settingsListeners.add(fn);
-    return () => settingsListeners.delete(fn);
+    if (event === "settings/document-updated") {
+      settingsListeners.add(fn);
+      return () => settingsListeners.delete(fn);
+    }
+    if (event === "session/event") {
+      sessionEventListeners.add(fn);
+      return () => sessionEventListeners.delete(fn);
+    }
+    return () => {};
   },
   webServer: {
     port: 6100,
@@ -232,7 +259,13 @@ const ctx = {
     if (key === "sessionPersistence") {
       return {
         async list() {
-          return storedSessionIds.map((id) => ({ id, meta: { cwd: "C:\\attach-ws" } }));
+          // 真机形状（dsh-session-persistence-jsonl 的 list()）：条目是 { header, revision }，
+          // **不是** header 本身。老 mock 直接把 header 摊在条目上，于是 /attach 与
+          // 「重启后 resume」两条路都假绿 —— 真机上永远 "session not found"。
+          return storedSessionIds.map((id) => ({
+            header: { version: 4, id, createdAt: 0, isSeeded: false, cwd: "C:\\attach-ws" },
+            revision: "rev-" + id,
+          }));
         },
       };
     }
@@ -345,6 +378,17 @@ function ok(cond, label) {
 console.log("plugin exports:");
 ok(name === "@dsh-pack/dsh-openclaw-bridge", "name 导出正确");
 ok(Array.isArray(inject) && inject.includes("agents"), "inject 含 agents 服务");
+
+// 0) 形状守卫：mock session 必须与真内核同形状（**没有** events 数组）。
+//    内核 0.1.7-rc.1 的 Session 只有 seq（+ 已 deprecated 的 eventAt/snapshotEvents），
+//    事件读取只能靠 ctx.on("session/event") 订阅。旧实现遍历 session.events，
+//    配上一份「有 events 数组」的假 mock 一路绿灯，真机上是整条 chat 链路 500。
+//    这条守卫拦住「为了让旧实现过测而把 events 加回 mock」的回退。
+{
+  const probe = makeMockAgent("shape-probe");
+  ok(!("events" in probe.agent.session), "mock session 没有 events 数组（与内核 0.1.7-rc.1 同形状）");
+  ok(typeof probe.agent.session.seq === "number", "mock session 暴露 seq");
+}
 
 // 1) health
 {

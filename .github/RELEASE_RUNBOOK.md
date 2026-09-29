@@ -26,7 +26,7 @@
 
 | 检查 | 命令 | 为什么是发布门禁而不只是 CI |
 | --- | --- | --- |
-| 静态审计 | `node tools/audit/index.js` | 6 项里 `publish-readiness` 是 **P0**：一个包写错就能让**整个官方客户端拒绝启动** |
+| 静态审计 | `node tools/audit/index.js` | 8 项里 `publish-readiness` 是 **P0**：一个包写错就能让**整个官方客户端拒绝启动** |
 | 发布物内容 | `node tools/itest/pack-audit.mjs` | `npm pack` 真实产物：查 `files` 白名单有没有把 `node_modules`/`.map`（内嵌上游 TS 源码）/测试目录打进去，以及 bundle 的 `cordis.patch.yml` 有没有随包发布 —— 漏了就是「装得上、一个都不挂」 |
 | 单测 | `node --test "packages/*/test/*.test.js"` | — |
 | J1 组合 | `node tools/itest/boot-desktop-profile.mjs --job=j1` | 验证补丁层真挂得上、id 恰好出现一次、二次安装字节幂等 |

@@ -106,11 +106,24 @@ function eventsToCoreMessages(events) {
   for (const event of events) out.push(...projectEvent(event));
   return out;
 }
+/**
+ * 内核 0.1.7-rc.1 移除了 Session.events 数组（session.meta 同时消失），迭代期事件
+ * 改由 ctx.on("session/event") 推送。这里留同步读整份日志的兼容口：snapshotEvents()
+ * 仍在（标弃用但可用），老宿主退回旧数组。回退分支刻意用下标读取 —— 审计门禁按
+ * `session.events` 字面量拦旧 API，这里正是要保留的那一个口子。
+ */
+function sessionEvents(session) {
+  if (!session) return [];
+  if (typeof session.snapshotEvents === "function") return session.snapshotEvents();
+  const legacy = session["events"];
+  return Array.isArray(legacy) ? legacy : [];
+}
+
 function surfaceEventsOf(session) {
-  return session.surface.nodes.map((seq) => session.events[seq]).filter((event) => event !== void 0);
+  return session.surface.nodes.map((seq) => sessionEvents(session)[seq]).filter((event) => event !== void 0);
 }
 function allLogMessages(session) {
-  return eventsToCoreMessages(session.events);
+  return eventsToCoreMessages(sessionEvents(session));
 }
 function extractEventText(event) {
   switch (event.type) {
@@ -145,7 +158,7 @@ function assertNoActiveCompaction(events) {
   }
 }
 function hasPlainRef(session, seq) {
-  const event = session.events[seq];
+  const event = sessionEvents(session)[seq];
   if (event === void 0) return false;
   switch (event.type) {
     case "user/message":
@@ -178,14 +191,14 @@ var AlreadyCompressedRangeError = class extends Error {
   coveringBlockIds;
 };
 function recoverStaleRange(session, start, end) {
-  if (session.events[start] === void 0 || session.events[end] === void 0) {
-    const failedEdge = session.events[start] === void 0 ? start : end;
+  if (sessionEvents(session)[start] === void 0 || sessionEvents(session)[end] === void 0) {
+    const failedEdge = sessionEvents(session)[start] === void 0 ? start : end;
     return { kind: "unresolvable", failedEdge };
   }
   const liveInside = session.surface.nodes.filter((seq) => seq >= start && seq <= end).sort((a, b) => a - b);
-  const plain = liveInside.filter((seq) => !isCheckpointNode(session.events[seq]));
+  const plain = liveInside.filter((seq) => !isCheckpointNode(sessionEvents(session)[seq]));
   if (plain.length === 0) {
-    const coveringBlockIds = rebuildBlockLedger(session.events).filter((entry) => entry.shadowedSeqs.some((seq) => seq >= start && seq <= end)).map((entry) => entry.blockId);
+    const coveringBlockIds = rebuildBlockLedger(sessionEvents(session)).filter((entry) => entry.shadowedSeqs.some((seq) => seq >= start && seq <= end)).map((entry) => entry.blockId);
     return { kind: "already-compressed", coveringBlockIds };
   }
   return { kind: "ok", start: plain[0], end: plain[plain.length - 1] };
@@ -268,8 +281,8 @@ function readCompactionSummary(event) {
   return event.data;
 }
 function runCompactionTransaction(session, input) {
-  assertNoActiveCompaction(session.events);
-  const turn = findOpenTurn(session.events);
+  assertNoActiveCompaction(sessionEvents(session));
+  const turn = findOpenTurn(sessionEvents(session));
   const compactionId = CompactionId(randomUUID());
   const seqs = [];
   seqs.push(session.append("compaction/start", { compactionId, turn }).seq);
@@ -353,7 +366,7 @@ function buildCompressibleSeqRanges(session, opts = {}) {
   const protectedSeqs = /* @__PURE__ */ new Set();
   for (const seq of nodes.slice(-preserve)) protectedSeqs.add(seq);
   for (let index = nodes.length - 1; index >= 0; index -= 1) {
-    const event = session.events[nodes[index]];
+    const event = sessionEvents(session)[nodes[index]];
     if (event?.type === "user/message" && !isCheckpointNode(event)) {
       protectedSeqs.add(nodes[index]);
       break;
@@ -366,7 +379,7 @@ function buildCompressibleSeqRanges(session, opts = {}) {
     cur = null;
   };
   for (const seq of nodes) {
-    const event = session.events[seq];
+    const event = sessionEvents(session)[seq];
     if (event === void 0 || protectedSeqs.has(seq) || isCheckpointNode(event)) {
       flush();
       continue;
@@ -402,7 +415,7 @@ function surfaceSummary(session) {
   return `${nodes.length} nodes, seqs ${first}..${last}`;
 }
 function blockRegistry(session) {
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const kernelIdOf = /* @__PURE__ */ new Map();
   const raw = [];
   let next = 1;
@@ -436,7 +449,7 @@ function blockRegistry(session) {
   }));
 }
 function blockRefForSummarySeq(session, seq) {
-  const event = session.events[seq];
+  const event = sessionEvents(session)[seq];
   if (event?.type !== "user/message") return null;
   const source = event.data.source;
   if (source?.plugin !== "compact" || source.compactionId === void 0) return null;
@@ -461,7 +474,7 @@ function checkpointBlockIdOf(events, seq) {
   return source.compactionId;
 }
 function expandShadowedSeqs(session, blockId) {
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const byId = new Map(ledger.map((entry) => [entry.blockId, entry]));
   const root = byId.get(blockId);
   if (root === void 0) return [];
@@ -471,7 +484,7 @@ function expandShadowedSeqs(session, blockId) {
     if (seen.has(entry.blockId)) return;
     seen.add(entry.blockId);
     for (const seq of entry.shadowedSeqs) {
-      const childId = checkpointBlockIdOf(session.events, seq);
+      const childId = checkpointBlockIdOf(sessionEvents(session), seq);
       const child = childId === null ? void 0 : byId.get(childId);
       if (child !== void 0) visit(child);
       else out.push(seq);
@@ -547,9 +560,9 @@ var AcpStateStore = class {
     const existing = this.states.get(id);
     if (existing !== void 0) return existing;
     const state = createInitialState();
-    if (session.events.some((event) => event.type === "compaction/summary")) {
-      state.blocks = rebuildKernelBlocks(session.events);
-      state.nextBlockId = nextBlockIdAfter(session.events);
+    if (sessionEvents(session).some((event) => event.type === "compaction/summary")) {
+      state.blocks = rebuildKernelBlocks(sessionEvents(session));
+      state.nextBlockId = nextBlockIdAfter(sessionEvents(session));
     }
     this.states.set(id, state);
     return state;
@@ -771,7 +784,7 @@ function buildNudge(agent, env, lastNudgeTurn) {
   const nudge = turn.nudge;
   if (nudge === void 0 || !nudge.shouldInject) return null;
   const emergency = nudge.breakdown?.emergencyOverride === 1;
-  const turnNumber = findOpenTurn(session.events) ?? 0;
+  const turnNumber = findOpenTurn(sessionEvents(session)) ?? 0;
   const alreadyShown = !emergency && lastNudgeTurn.get(session.id) === turnNumber;
   if (alreadyShown) return null;
   lastNudgeTurn.set(session.id, turnNumber);
@@ -1094,7 +1107,7 @@ async function handleCompress(env, args, exec) {
     const shadowed = shadowedSeqsOf(session, start, end);
     let shadowedTokens = 0;
     for (const seq of shadowed) {
-      const event = session.events[seq];
+      const event = sessionEvents(session)[seq];
       if (event !== void 0) shadowedTokens += defaultCountTokens3(extractEventText(event));
     }
     const tier = block.tier === 2 || block.tier === 3 ? block.tier : 1;
@@ -1135,14 +1148,14 @@ var decompressParameters = {
 };
 function handleDecompress(_env, args, exec) {
   const session = requireAgent(exec).session;
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const block = ledger.find((entry) => entry.blockId.startsWith(args.blockId));
   if (block === void 0) {
     return { text: `decompress: block "${args.blockId}" not found (see acp_status for the block list)` };
   }
   const parts = [];
   for (const seq of expandShadowedSeqs(session, block.blockId)) {
-    const event = session.events[seq];
+    const event = sessionEvents(session)[seq];
     const text = event === void 0 ? "" : extractEventText(event);
     if (text.length > 0) parts.push(`[seq ${seq}] ${text}`);
   }
@@ -1159,11 +1172,11 @@ var searchParameters = {
 };
 function handleSearch(_env, args, exec) {
   const session = requireAgent(exec).session;
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const terms = args.query.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = [];
   for (const block of ledger) {
-    const original = block.shadowedSeqs.map((seq) => extractEventText(session.events[seq])).join("\n");
+    const original = block.shadowedSeqs.map((seq) => extractEventText(sessionEvents(session)[seq])).join("\n");
     const haystack = `${block.summary}
 ${original}`.toLowerCase();
     let score = 0;
@@ -1182,7 +1195,7 @@ var statusParameters = {};
 async function handleStatus(env, _args, exec) {
   const agent = requireAgent(exec);
   const session = agent.session;
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const totalTokens = ledger.reduce((sum, block) => sum + block.shadowedTokenCount, 0);
   const coreMessages = eventsToCoreMessages(surfaceEventsOf(session));
   const estimated = resolveTokenCount(agent, coreMessages);
@@ -1247,7 +1260,7 @@ function makeTools(env) {
 import { defaultCountTokens as defaultCountTokens4 } from "acp-kernel";
 async function statusText(env, agent) {
   const session = agent.session;
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const totalTokens = ledger.reduce((sum, block) => sum + block.shadowedTokenCount, 0);
   const coreMessages = eventsToCoreMessages(surfaceEventsOf(session));
   const estimated = resolveTokenCount(agent, coreMessages);
@@ -1284,7 +1297,7 @@ function compressText(env, agent, args) {
   const shadowed = shadowedSeqsOf(session, startSeq, endSeq);
   let shadowedTokens = 0;
   for (const seq of shadowed) {
-    const event = session.events[seq];
+    const event = sessionEvents(session)[seq];
     if (event !== void 0) shadowedTokens += defaultCountTokens4(extractEventText(event));
   }
   const { compactionId } = runCompactionTransaction(session, {
@@ -1301,10 +1314,10 @@ function compressText(env, agent, args) {
 function decompressText(_env, agent, args) {
   if (args.length < 1) return "/acp decompress <blockId>";
   const session = agent.session;
-  const ledger = rebuildBlockLedger(session.events);
+  const ledger = rebuildBlockLedger(sessionEvents(session));
   const block = ledger.find((entry) => entry.blockId.startsWith(args[0]));
   if (block === void 0) return `block "${args[0]}" not found (see /acp status)`;
-  const parts = expandShadowedSeqs(session, block.blockId).map((seq) => extractEventText(session.events[seq])).filter((text) => text.length > 0);
+  const parts = expandShadowedSeqs(session, block.blockId).map((seq) => extractEventText(sessionEvents(session)[seq])).filter((text) => text.length > 0);
   return `Block ${block.blockId} \u2014 ${block.summary}
 
 ${parts.join("\n\n") || "(no recoverable content)"}`;

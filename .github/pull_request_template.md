@@ -23,7 +23,7 @@ type ∈ feat / fix / refactor / perf / docs / test / chore / build
       证明结论随之改变（否则说明判据根本没起作用）。缺反证的守卫按未完成处理。
 - [ ] **断言不许假绿**：批量检查必须先断言样本量非零；上游步骤失败时要短路下游断言。
       「0 个包全部通过」不是通过。
-- [ ] 本地静态审计通过：`node tools/audit/index.js`（6 项，error 必须为 0）
+- [ ] 本地静态审计通过：`node tools/audit/index.js`（8 项，error 必须为 0）
 - [ ] 单测通过：`node --test "packages/*/test/*.test.js"`
       （附实测 `tests / pass / fail / skipped` 四项计数；**`skipped` 比改动前增加必须说明原因**
       —— 靠 `skip` 遮住的守卫等于关掉的报警器）

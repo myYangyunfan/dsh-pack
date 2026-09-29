@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/dsh-prompt-custom",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "在 DSH 设置页自定义官方内核注入的提示词（替换整体/追加，应用到 standard 完整 Agent 基准预设）",
   "type": "module",
   "main": "lib/index.js",

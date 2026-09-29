@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/harness-pet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Harness Pet is an unofficial community project. Not affiliated with, endorsed by, or maintained by DeepSeek. A tiny whale for DeepSeek Harness.",
   "type": "module",
   "packageManager": "pnpm@11.19.0",

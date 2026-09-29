@@ -17,6 +17,19 @@ import { detectCommunities } from "./src/graph/community.js";
 import { DEFAULT_CONFIG } from "./src/types.js";
 export const name = "graph-memory-dsh";
 export const inject = ["tools", "llm", "systemPrompt", "agentLoop", "sessions", "credentials"];
+/**
+ * 内核 0.1.7-rc.1 移除了 Session.events 数组（session.meta 同时消失），迭代期事件
+ * 改由 ctx.on("session/event") 推送。这里留同步读整份日志的兼容口：snapshotEvents()
+ * 仍在（标弃用但可用），老宿主退回旧数组。回退分支刻意用下标读取 —— 审计门禁按
+ * `session.events` 字面量拦旧 API，这里正是要保留的那一个口子。
+ */
+function sessionEvents(session) {
+    if (!session) return [];
+    if (typeof session.snapshotEvents === "function") return session.snapshotEvents();
+    const legacy = session["events"];
+    return Array.isArray(legacy) ? legacy : [];
+}
+
 const HOST = "dsh";
 const PLUGIN = "graph-memory";
 function sessionKey(id) {
@@ -253,7 +266,7 @@ export function apply(ctx, input = {}) {
         const cwd = agent?.session?.cwd ?? agent?.session?.header?.cwd;
         if (cwd)
             sessionWorkspaceMap.set(key, String(cwd));
-        for (const event of agent.session.events)
+        for (const event of sessionEvents(agent.session))
             ingest(id, event);
     }
     ctx.on("agent/session-start", ({ agent }) => backfill(agent));

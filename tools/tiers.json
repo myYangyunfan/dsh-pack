@@ -1,6 +1,6 @@
 {
   "_meta": "分层元包的唯一事实源。**只有一层 all**：内核 applyEntryPatches 对 insert 是追加、不按 id 去重，两个元包同装会把共有成员装配两次（host 半边第二次 register 路由即报 webserver: duplicate exact route），所以阶梯（core ⊂ plus ⊂ all）在内核语义下不成立。成员的 tierOf 只是「按用途挑选」的分组标签，不再生成元包。改这里 → 重跑 tools/build-meta-patches.mjs → packages/meta-all/cordis.patch.yml 自动跟随。每个成员必须自带 cordis.patch.yml 与 package.json#dsh.bundle.patch（纯插件包形态下必须能单装）。",
-  "kernelVersion": "0.1.7-rc.1",
+  "kernelVersion": "0.2.0-rc.1",
   "packScope": "@dsh-pack",
   "tiers": {
     "all": {

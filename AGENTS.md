@@ -20,7 +20,8 @@
 | `packages/host-capabilities/` | 宿主能力探针。**不是 bundle**，给别的包构建期内联 |
 | `tools/tiers.json` | 成员清单 + 用途分组，**唯一事实源**（取代已删除的 `COMPANION_PLUGINS`）。**只有一层 `all`**，见契约 4 |
 | `tools/build-meta-patches.mjs` | 由成员补丁层生成 `meta-all` 的 `cordis.patch.yml` |
-| `tools/audit/` | 6 项离线静态门禁，取代已删除的内核补丁校验机器 |
+| `tools/pack-local.mjs` | 打全部包成 tarball 到 `packs/`（离线/本地安装用，配 `docs/install-from-tarballs.md`；产物不入库） |
+| `tools/audit/` | 8 项离线静态门禁，取代已删除的内核补丁校验机器 |
 | `tools/itest/` | 真装真组合的集成校验（J1 组合 / J2 tarball 启动 / J3 构建脚本放行） |
 | `docs/` | 面向用户与上游的文档；`docs/upstream/` 是提给上游的 bug 正文 |
 | `.github/workflows/` | `ci.yml`（审计+单测+集成）、`release.yml`（changesets→npm）、`kernel-drift.yml`（夜间内核漂移） |
@@ -31,6 +32,7 @@
 pnpm install                      # 装 workspace
 node tools/audit/index.js         # 全部静态门禁（发布前必须绿）
 node tools/build-meta-patches.mjs # 重新生成分层元包的补丁层
+node tools/pack-local.mjs         # 打全部包成 tarball 到 packs/（离线安装交付物）
 node --test "packages/*/test/*.test.js"
 node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的内核，见 --help
 ```
@@ -61,6 +63,11 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
    `cordis.patch.yml`，把成员的行全部拼进去。由 `tools/build-meta-patches.mjs` 生成，
    禁止手改；审计会断言「签入的元包补丁层 == 重新生成的结果」逐字节一致。
    **也不要做嵌套元包。**
+   依赖表那半条同样受门禁：`self-mount` 断言 `@dsh-pack/all` 的 `dependencies` 恰好
+   = 全部自装载成员 × `^<成员当前版本>`（少一个成员 = 那个插件装了元包也不进
+   node_modules、行 import 不到；范围写旧 = 用户装到旧代码；写精确版本 = 补丁修复
+   送不出去）。真机实测：元包指向未发布版本时 pnpm 直接报
+   `The latest release of @dsh-pack/x is "0.1.0"`（元包要 `^0.1.1`）而整单失败。
 4b. **只允许一个元包，因为 `insert` 不去重。** 内核 `applyEntryPatches`
    （`@deepseek-ai/dsh-app-boot`）处理 `insert` 是 `data.push(...insert)`：不看内容、
    不按 id 去重 —— 「按 id 整行替换」只作用于**覆盖型补丁**（`- id: X / 字段: 值`），

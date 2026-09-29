@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/dsh-conversation-tweaks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH Desktop 配套会话体验：设置-通用里隐藏长篇对话输出 + 会话右侧导航滑轨",
   "type": "module",
   "main": "lib/index.js",

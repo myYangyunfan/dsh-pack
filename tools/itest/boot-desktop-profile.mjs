@@ -115,7 +115,9 @@ function idsOf(pkgDir) {
     const text = readFileSync(f, 'utf8');
     for (const m of text.matchAll(/^\s*-?\s*id:\s*(['"]?)([^'"\s#][^'"\s#]*)\1\s*$/gm)) ids.push(m[2]);
   }
-  return { ids, name: manifest.name, decl: Boolean(decl), error: manifest.error };
+  // deps 用来区分「有没有 registry 依赖」：元包的依赖是 @dsh-pack/*，离线装不上（见 J2 注释）
+  const deps = Object.keys(manifest.dependencies || {});
+  return { ids, name: manifest.name, decl: Boolean(decl), deps, error: manifest.error };
 }
 
 const packages = readdirSync(ROOT)
@@ -208,6 +210,52 @@ function packTo(cwd, dest) {
   return r;
 }
 
+// pnpm 11 拦下依赖的构建脚本时，会在 profile 的 pnpm-workspace.yaml 里留下占位条目
+// （allowBuilds: '<name>': set this to true or false）。插件页那句「Allow these scripts
+// and retry」做的就是**把那行占位值就地改成 true 再重装**——这里照做。
+// 非做不可的理由：图里只要留下一个未放行的构建脚本，此后**每一次** pnpm 调用都会被
+// 同一个门禁整体拒掉（实测：better-sidebar 引入 node-pty 之后 28 个包全红，它们既没
+// 装进去也没被组合验证过）。这不是给断言开后门——J2 的「全部安装成功」「每个 id 都
+// 挂上」判据一字未改，只是把用户要手点的那一步补上。
+//
+// 重试前**必须回滚 package.json / pnpm-lock.yaml**，否则是「装上了却挂不上」的静默半装：
+//   · 服务路径（插件页 / agent 工具 → installBundle）失败时会 restoreFiles 回滚这两个文件
+//     （dsh-plugin-manager/lib/index.js:1646 读快照、:1722 catch 里回滚；RESTORED_FILES 见 :1028），
+//     所以用户点重试时 before 里没有这个依赖，装完 reconcile 能看见「新增」并把 bundle 登记进
+//     dsh.profile.bundles；
+//   · CLI 路径（本 harness 与 CI 用的 `dsh plugin add`）走 runProfilePnpm，**只在版本不兼容那条
+//     分支回滚**（lib/types/operations.js:428），构建门禁失败时依赖留在 package.json 里 ——
+//     于是重试时 reconcile(before) 看到「无新增」，bundle 永远不登记。实测：dump-config 里
+//     `id: better-sidebar` 出现 0 次，而 node_modules 里包装得好好的。
+// 所以这里按服务路径的语义补回滚，测的才是用户在插件页点按钮时的那条路。
+function addWithBuildApproval(profile, tarball) {
+  const dir = join(HOME, 'profiles', profile);
+  const snapshot = ['package.json', 'pnpm-lock.yaml'].map((name) => {
+    const path = join(dir, name);
+    return { path, text: existsSync(path) ? readFileSync(path, 'utf8') : null };
+  });
+  const rollback = () => {
+    for (const file of snapshot) {
+      if (file.text === null) rmSync(file.path, { force: true });
+      else writeFileSync(file.path, file.text);
+    }
+  };
+  for (let round = 0; ; round += 1) {
+    const r = dsh('plugin', '--profile', profile, 'add', tarball);
+    const out = (r.stdout || '') + (r.stderr || '');
+    if (r.status === 0 || round >= 3) return { status: r.status, out };
+    if (!/ERR_PNPM_IGNORED_BUILDS|Ignored build scripts|pendingBuilds/i.test(out)) return { status: r.status, out };
+    const wsFile = join(dir, 'pnpm-workspace.yaml');
+    if (!existsSync(wsFile)) return { status: r.status, out };
+    const before = readFileSync(wsFile, 'utf8');
+    const approved = before.replace(/set this to true or false/g, 'true');
+    if (approved === before) return { status: r.status, out };
+    writeFileSync(wsFile, approved);
+    rollback();
+    console.log('  [approve] 回滚 manifest + 放行构建脚本后重试（= 插件页「Allow these scripts and retry」）');
+  }
+}
+
 // ---------- J2：npm pack 成真的 tarball 再装 ----------
 // 为什么非用 tarball 不可：**路径安装（link:）会掩盖 files 白名单的错误**——
 // pnpm 对 link: 依赖既不装它自己的 dependencies，也不看 files 字段。
@@ -268,13 +316,48 @@ if (job.includes('j2')) {
   expect(contentBad === 0, `${packed.length} 个 tarball 产物内容干净`, `${contentBad} 个有问题`);
 
   const PROFILE = 'itest2';
+  // 两类包两条判据（不是给谁开后门，是判据本该按语义分类）：
+  //   · 成员包：依赖里没有 @dsh-pack/* ⇒ 离线安装不碰 registry，判据严格（必装必挂）。
+  //   · 元包：依赖就是 @dsh-pack/* 的**未发布版本** ⇒ 离线物理上装不上。实测 pnpm 的
+  //     原话：`The latest release of @dsh-pack/dsh-auto-compact is "0.1.0"`（元包要 ^0.1.1）。
+  //     所以对它要求「要么装成功，要么失败原因就是这个」——别的错（patch/manifest/构建门禁）
+  //     一律红；版本一旦发布（或用本地 registry）就自动变成硬要求。
+  //     元包真正的安装语义（一个输入装齐一层）只在 registry 上验得到，用户侧两条通道见
+  //     docs/install-from-tarballs.md；它的离线可验部分（依赖表 ↔ 成员）由 self-mount 门禁把守。
+  const needsRegistry = (p) => (p.deps || []).some((d) => d.startsWith('@dsh-pack/'));
+  const memberPacks = packed.filter((p) => !needsRegistry(p));
+  const metaPacks = packed.filter(needsRegistry);
+
   let installed = 0;
-  for (const p of packed) {
-    const r = dsh('plugin', '--profile', PROFILE, 'add', winPath(p.tarball));
+  for (const p of memberPacks) {
+    const r = addWithBuildApproval(PROFILE, winPath(p.tarball));
     if (r.status === 0) installed += 1;
-    else console.log(`  安装失败 ${p.dir}: ${((r.stdout || '') + (r.stderr || '')).split('\n').filter(Boolean).slice(-3).join(' | ')}`);
+    else console.log(`  安装失败 ${p.dir}: ${r.out.split('\n').filter(Boolean).slice(-3).join(' | ')}`);
   }
-  expect(installed === packed.length, `${installed}/${packed.length} 个 tarball 安装成功`, `${packed.length - installed} 个失败`);
+  expect(
+    installed === memberPacks.length,
+    `${installed}/${memberPacks.length} 个成员 tarball 安装成功（离线，不依赖 registry）`,
+    `${memberPacks.length - installed} 个失败`
+  );
+
+  const metaWrong = [];
+  for (const p of metaPacks) {
+    const r = addWithBuildApproval(PROFILE, winPath(p.tarball));
+    const tail = r.out.split('\n').filter(Boolean).slice(-3).join(' | ');
+    if (r.status === 0) {
+      console.log(`  元包 ${p.dir}：registry 上有全部依赖版本，装成功（含「一个输入装齐一层」的组合）`);
+    } else if (/latest release of @dsh-pack\/|No matching version found|ERR_PNPM_NO_MATCHING_VERSION/i.test(r.out)) {
+      console.log(`  元包 ${p.dir}：依赖版本未发布，离线装不上（预期；离线替代路径=装成员 tarball）`);
+      console.log(`         ${tail}`);
+    } else {
+      metaWrong.push(`${p.dir}: ${tail}`);
+    }
+  }
+  expect(
+    metaWrong.length === 0,
+    `${metaPacks.length} 个元包要么装成功、要么只因依赖未发布而失败（其它原因一律红）`,
+    metaWrong.join('; ')
+  );
 
   const dump = dsh('--profile', PROFILE, '--dump-config');
   const composed = dump.stdout || '';

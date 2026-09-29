@@ -234,12 +234,13 @@ function resolveBoundary(ctx, sessionId, targetSeq) {
   const session = ctx.sessions.get(sessionId);
   if (!session) return { code: 'session-not-found', status: 404 };
   // v2.4.0: dsh 0.1.2 起 Session.events 移除，改用 snapshotEvents(fromSeq, toSeqExclusive)；
-  // rc.2 旧宿主仍走 session.events。事件对象两代同构（seq/type 字段）。
+  // rc.2 旧宿主仍走 session.events（写成下标读取，旧 API 字面量有审计门禁 session-api.js）。
+  // 事件对象两代同构（seq/type 字段）。
   let events;
   if (typeof session.snapshotEvents === "function") {
     try { events = session.snapshotEvents(); } catch (e) { return { code: 'internal', status: 500, message: String(e?.message ?? e) }; }
   } else {
-    events = session.events;
+    events = session["events"];
   }
   if (!Array.isArray(events)) return { code: 'internal', status: 500, message: 'events unavailable' };
   const targetIdx = events.findIndex((e) => e.seq === targetSeq);

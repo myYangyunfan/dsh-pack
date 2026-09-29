@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/host-capabilities",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "宿主能力探针：探测当前运行在哪个 Harness 宿主里、它到底给了哪些原生能力。纯构建期内联库，不是 cordis bundle。",
   "type": "module",
   "license": "MIT",

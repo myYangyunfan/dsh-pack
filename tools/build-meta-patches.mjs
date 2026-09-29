@@ -49,12 +49,12 @@ function loadSemver() {
 }
 const semver = loadSemver();
 
-// 官方客户端运行时内核版本（compat 门只按 peerDependencies 里 @deepseek-ai/dsh{,-*} 判定）
-const KERNEL_VERSION = '0.1.7-rc.1';
-const CHECK = process.argv.includes('--check');
-
 const tiers = JSON.parse(readFileSync(join(REPO, 'tools', 'tiers.json'), 'utf8'));
 const kernelIds = new Set(JSON.parse(readFileSync(join(REPO, 'tools', 'audit', 'kernel-entry-ids.json'), 'utf8')).ids);
+
+// 官方客户端运行时内核版本（compat 门只按 peerDependencies 里 @deepseek-ai/dsh{,-*} 判定）
+const KERNEL_VERSION = tiers.kernelVersion || '0.2.0-rc.1';
+const CHECK = process.argv.includes('--check');
 
 const problems = [];
 const warnings = [];
@@ -279,6 +279,43 @@ for (const [tier, spec] of Object.entries(tiers.tiers)) {
   }
 
   tierReport.push({ tier, metaDir, rows: blocks.length });
+
+  // ── 同时生成仓库根目录 cordis.patch.yml（供直接以 Git 仓库 URL 安装在桌面端） ──────
+  if (tier === 'all') {
+    const rootOut = [];
+    rootOut.push('# ⚠️ 本文件由 tools/build-meta-patches.mjs 生成，供直接以 Git URL 安装在官方客户端');
+    rootOut.push('# 安装方式：在官方桌面端「设置 → 插件」直接输入 Git 仓库链接：');
+    rootOut.push('# https://github.com/myYangyunfan/dsh-pack.git');
+    rootOut.push('#');
+    rootOut.push('- insert:');
+    for (const b of blocks) {
+      rootOut.push(`    # ── ${b.dir} ── ${b.purpose}`);
+      for (const l of b.lines) {
+        if (/^\s+name:\s/.test(l)) {
+          const relTarget = b.dir === 'graph-memory'
+            ? './packages/graph-memory/lib/dsh.js'
+            : `./packages/${b.dir}/lib/index.js`;
+          const indent = /^\s*/.exec(l)[0];
+          rootOut.push(`${indent}name: '${relTarget}'`);
+        } else {
+          rootOut.push(l);
+        }
+      }
+    }
+    rootOut.push('');
+    const rootTarget = join(REPO, 'cordis.patch.yml');
+    const rootText = rootOut.join('\n');
+    if (CHECK) {
+      if (existsSync(rootTarget) && readFileSync(rootTarget, 'utf8') === rootText) {
+        identical += 1;
+      } else {
+        fail('根目录 cordis.patch.yml 与 tiers.json 不一致（跑 node tools/build-meta-patches.mjs 重新生成）');
+      }
+    } else {
+      writeFileSync(rootTarget, rootText);
+      console.log('  已同步生成根目录 cordis.patch.yml（Git 仓库直装支持）');
+    }
+  }
 }
 
 function spec_defaultDisabled(spec, member) {
