@@ -1133,6 +1133,7 @@ function bindSettingsScope(ctx, entryId) {
             yield ctx.slots.register({
               name: "tool.call.toolview",
               key,
+              priority: -1,
               inject: (sessionId) => (useScope ? { useScope } : {}),
             }, function LensRowForward(props) {
               try {

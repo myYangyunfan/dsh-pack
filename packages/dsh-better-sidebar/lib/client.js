@@ -3843,6 +3843,7 @@ window.__ModuleLoader__.load({
 		*/
 		function registerTurnTailInterception(ctx, store) {
 			return ctx.slots.inject("conversation.chat.turnTail", () => ctx.slots.register({
+				id: "dsh-better-sidebar-turn-tail",
 				name: "conversation.chat.turnTail",
 				select: (owner) => {
 					if (store.getSuspended()) return null;
