@@ -633,7 +633,16 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
         writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
         return
       }
-      if (req.method !== 'POST') {
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'content-type',
+        })
+        res.end()
+        return
+      }
+      if (req.method !== 'POST' && req.method !== 'GET') {
         writeJson(res, 405, { ok: false, error: { code: 'method-error', message: 'method not allowed' } })
         return
       }
@@ -644,7 +653,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
         return
       }
       try {
-        const payload = await readJsonBody(req)
+        const payload = req.method === 'GET' ? {} : await readJsonBody(req)
         const handler = api[method]
         if (handler === undefined) {
           throw new SidebarError('not-found', `unknown sidebar API method "${method}"`, 404)

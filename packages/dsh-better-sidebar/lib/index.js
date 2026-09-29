@@ -3656,7 +3656,16 @@ function apply(ctx, config) {
 				});
 				return;
 			}
-			if (req.method !== "POST") {
+			if (req.method === "OPTIONS") {
+				res.writeHead(204, {
+					"Access-Control-Allow-Origin": "*",
+					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+					"Access-Control-Allow-Headers": "content-type"
+				});
+				res.end();
+				return;
+			}
+			if (req.method !== "POST" && req.method !== "GET") {
 				writeJson(res, 405, {
 					ok: false,
 					error: {
@@ -3673,7 +3682,7 @@ function apply(ctx, config) {
 				return;
 			}
 			try {
-				const payload = await readJsonBody(req);
+				const payload = req.method === "GET" ? {} : await readJsonBody(req);
 				const handler = api[method];
 				if (handler === void 0) throw new SidebarError("not-found", `unknown sidebar API method "${method}"`, 404);
 				writeOk(res, await handler(payload));
