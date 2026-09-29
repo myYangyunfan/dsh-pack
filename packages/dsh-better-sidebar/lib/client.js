@@ -3804,7 +3804,9 @@ window.__ModuleLoader__.load({
 		}
 		/** The intercepted produced-files row (visual twin of the deliverables chips). */
 		function SidebarProducedFiles(props) {
-			const { matched, openInSidebar } = props;
+			const matched = props && Array.isArray(props.matched) ? props.matched : [];
+			if (matched.length === 0) return null;
+			const openInSidebar = props && props.openInSidebar ? props.openInSidebar : () => {};
 			const shown = matched.slice(0, 6);
 			const hidden = matched.length - shown.length;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {

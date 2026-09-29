@@ -34,10 +34,12 @@ export function openSidebarFile(ctx: Context, store: SidebarStore, sessionId: st
 
 /** The intercepted produced-files row (visual twin of the deliverables chips). */
 export function SidebarProducedFiles(props: {
-  matched: readonly string[]
-  openInSidebar: (path: string) => void
+  matched?: readonly string[]
+  openInSidebar?: (path: string) => void
 }) {
-  const { matched, openInSidebar } = props
+  const matched = (props && Array.isArray(props.matched)) ? props.matched : []
+  if (matched.length === 0) return null
+  const openInSidebar = props?.openInSidebar ?? (() => {})
   const shown = matched.slice(0, 6)
   const hidden = matched.length - shown.length
   return (
