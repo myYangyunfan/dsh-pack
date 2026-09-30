@@ -105,6 +105,47 @@ function expectedRowName(dir) {
   return dir === 'graph-memory' ? `@dsh-pack/${dir}/dsh` : `@dsh-pack/${dir}`;
 }
 
+/**
+ * 成员在「Git URL 直装」根补丁里的**真实入口路径**。
+ *
+ * 这里以前对每个成员硬编码 `lib/index.js`（只给 graph-memory 开了特例），但成员并不
+ * 统一构建到 `lib/`：dsh-offpeak / dsh-zcode-migrate 直接发 `src/`，dsh-synapse 发根
+ * 目录 `index.js`，billion-context-dsh 发 `dist/`。路径写错**不会响亮失败**——loader
+ * 拿不到 fiber，`dsh-client-modules` 的 `processOne()` 见到 `entry.fiber === void 0`
+ * 直接跳过，那个插件就静默不进客户端启动图，用户看到的是「装了但没反应、日志干净」。
+ * 2026-09-30 真机实测：offpeak / synapse / zcode-migrate / compaction-acp 四条全中。
+ *
+ * 所以按成员自己的 `exports["."]` → `main` 推导，并**断言文件真的存在**；推导不出来
+ * 就 fail，绝不再退回归某个猜测路径。
+ */
+const ENTRY_OVERRIDES = { 'graph-memory': 'lib/dsh.js' };
+
+function entryRelOf(dir) {
+  const override = ENTRY_OVERRIDES[dir];
+  if (override !== undefined) return `./packages/${dir}/${override}`;
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(join(PLUGINS, dir, 'package.json'), 'utf8'));
+  } catch (error) {
+    fail(`${dir}: 读取 package.json 失败，无法推导入口（${error.message}）`);
+    return null;
+  }
+  const dot = manifest.exports && manifest.exports['.'];
+  const rel = typeof dot === 'string'
+    ? dot
+    : ((dot && (dot.default || dot.import)) || manifest.main);
+  if (typeof rel !== 'string' || rel === '') {
+    fail(`${dir}: package.json 既没有可用的 exports["."]，也没有 main，无法推导入口`);
+    return null;
+  }
+  const clean = rel.replace(/^\.\//, '');
+  if (!existsSync(join(PLUGINS, dir, clean))) {
+    fail(`${dir}: 推导出的入口不存在 —— packages/${dir}/${clean}（exports["."]/main 与实际产物不一致）`);
+    return null;
+  }
+  return `./packages/${dir}/${clean}`;
+}
+
 /** 校验成员包是否满足「可独立自挂载」三条件，返回其 insert 行。 */
 function memberRows(dir) {
   const root = join(PLUGINS, dir);
@@ -292,9 +333,7 @@ for (const [tier, spec] of Object.entries(tiers.tiers)) {
       rootOut.push(`    # ── ${b.dir} ── ${b.purpose}`);
       for (const l of b.lines) {
         if (/^\s+name:\s/.test(l)) {
-          const relTarget = b.dir === 'graph-memory'
-            ? './packages/graph-memory/lib/dsh.js'
-            : `./packages/${b.dir}/lib/index.js`;
+          const relTarget = entryRelOf(b.dir);
           const indent = /^\s*/.exec(l)[0];
           rootOut.push(`${indent}name: '${relTarget}'`);
         } else {

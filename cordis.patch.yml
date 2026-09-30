@@ -32,7 +32,7 @@
       name: './packages/dsh-change-review/lib/index.js'
     # ── dsh-offpeak ── 峰谷价格卫士：高峰时段发送前拦截提醒，可定时到闲时价执行
     - id: offpeak
-      name: './packages/dsh-offpeak/lib/index.js'
+      name: './packages/dsh-offpeak/src/index.js'
       config:
         # 峰谷定价生效日（北京时间）；此前插件休眠，不拦截不弹窗。
         effectiveFrom: '2026-08-17'
@@ -77,7 +77,7 @@
       name: './packages/dsh-vision/lib/index.js'
     # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
     - id: synapse
-      name: './packages/dsh-synapse/lib/index.js'
+      name: './packages/dsh-synapse/index.js'
       config:
         # A profile can override this path in its own cordis.patch.yml.
         dataFile: !!js dshHomePath('synapse/workspaces.json')
@@ -91,7 +91,7 @@
       name: './packages/dsh-prompt-optimizer/lib/index.js'
     # ── dsh-zcode-migrate ── zcode CLI 历史会话 → dsh 原生会话日志迁移
     - id: zcode-migrate
-      name: './packages/dsh-zcode-migrate/lib/index.js'
+      name: './packages/dsh-zcode-migrate/src/index.js'
       config:
         # zcode CLI 的会话库（支持 ~ 家目录写法）。
         dbPath: ~/.zcode/cli/db/db.sqlite
@@ -149,4 +149,4 @@
       name: './packages/dsh-openclaw-bridge/lib/index.js'
     # ── billion-context-dsh ── Active Context Pruning：模型驱动的百万级上下文压缩后端
     - id: compaction-acp
-      name: './packages/billion-context-dsh/lib/index.js'
+      name: './packages/billion-context-dsh/dist/index.js'
