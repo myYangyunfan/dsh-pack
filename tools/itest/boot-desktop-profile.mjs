@@ -59,9 +59,12 @@ function packRoot() {
 }
 
 function kernelBin() {
-  // 优先用显式指定，其次用仓库里已装好的，最后退回临时安装
+  // 优先用显式指定，其次用仓库里已装好的，最后退回临时安装。
+  // 第一个仓库内候选是**现在的**布局：自制壳退役后内核就是工作区自己的
+  // devDependency（J4 也从这里取）。后面两个是历史路径，留着只为兼容旧检出。
   const candidates = [
     process.env.DSH_KERNEL_BIN,
+    join(REPO, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(REPO, 'dsh-desktop', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(REPO, '..', 'kernel', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
   ].filter(Boolean);

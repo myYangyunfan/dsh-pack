@@ -25,6 +25,7 @@ const CHECKS = [
   { name: 'settings-api', module: './settings-api' },
   { name: 'session-api', module: './session-api' },
   { name: 'publish-readiness', module: './publish-readiness' },
+  { name: 'kernel-shadow', module: './kernel-shadow' },
   { name: 'syntax', module: './syntax' },
 ];
 

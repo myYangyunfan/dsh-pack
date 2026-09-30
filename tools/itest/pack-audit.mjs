@@ -25,6 +25,23 @@ function sh(cmd, args, opts = {}) {
   return spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: true, ...opts });
 }
 
+/**
+ * List one tarball's entries.
+ *
+ * `--force-local` is a **GNU tar** flag (it stops tar from reading a Windows
+ * drive letter as a `host:path` remote spec). The `tar` on PATH on Windows is
+ * **bsdtar**, which rejects it outright — so passing it unconditionally made
+ * this gate die on Windows with `Option --force-local is not supported` for
+ * *every* package, i.e. the whole release gate was unrunnable there.
+ * bsdtar needs no such flag, so try GNU first and fall back once.
+ */
+function listTarball(tgz) {
+  const primary = sh('tar', ['--force-local', '-tzf', tgz]);
+  if (primary.status === 0) return primary;
+  if (!/--force-local/i.test(`${primary.stderr || ''}${primary.stdout || ''}`)) return primary;
+  return sh('tar', ['-tzf', tgz]);
+}
+
 const findings = [];
 let checked = 0;
 
@@ -40,12 +57,16 @@ for (const dir of readdirSync(PKGS).sort()) {
     continue;
   }
   checked += 1;
-  const listing = sh('tar', ['--force-local', '-tzf', join(OUT, file)]);
+  const listing = listTarball(join(OUT, file));
   if (listing.status !== 0) {
     findings.push({ dir, why: `tar 列不出来：${(listing.stderr || '').trim().split('\n')[0]}` });
     continue;
   }
-  const entries = (listing.stdout || '').split('\n').filter(Boolean);
+  // Trim each line: `tar` on Windows emits CRLF, and an untrimmed trailing
+  // `\r` makes every entry (including `package/package.json`) compare unequal,
+  // which reported "缺 package.json" for all 34 packages while the files were
+  // plainly inside the tarball.
+  const entries = (listing.stdout || '').split('\n').map((line) => line.trim()).filter(Boolean);
   const strip = (e) => e.replace(/^package\//, '');
   const manifest = (() => {
     try {
