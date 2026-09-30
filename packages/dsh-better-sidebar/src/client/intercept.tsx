@@ -109,7 +109,9 @@ export function registerTurnTailInterception(ctx: Context, store: SidebarStore):
  * the original (HMR-safe).
  */
 export function registerOpenPathInterception(ctx: Context, store: SidebarStore): () => void {
-  return wrapOpenPath(ctx.workspaces, openPathDeps(ctx, store))
+  const workspaces = (ctx as unknown as { workspaces?: OpenPathService }).workspaces
+  if (!workspaces || typeof workspaces.openPath !== 'function') return () => {}
+  return wrapOpenPath(workspaces, openPathDeps(ctx, store))
 }
 
 /** Shared per-call takeover decisions for both file-open funnels. */

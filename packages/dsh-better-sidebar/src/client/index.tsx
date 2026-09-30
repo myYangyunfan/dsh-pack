@@ -16,7 +16,7 @@ import { createBetterSidebarService, matchUrlTarget } from './service.ts'
 import { revalidateChunksOnReactivate, setChunkModuleSystem } from './chunk-loader.ts'
 import { registerBuiltins } from './builtins/index.ts'
 import { Sidebar } from './Sidebar.tsx'
-import { integrateKernelRightbar, readKernelRightbarSeam } from './kernel-rightbar.tsx'
+import { integrateKernelRightbar, isKernelRightbarActive, readKernelRightbarSeam } from './kernel-rightbar.tsx'
 import { RenderBoundary } from './RenderBoundary.tsx'
 import { registerOpenPathInterception, registerRemoteOpenPathInterception, registerTurnTailInterception } from './intercept.tsx'
 import { registerLinkInterception } from './link-intercept.ts'
@@ -102,14 +102,34 @@ export function apply(ctx: Context): void {
   // 故意**不**把该包写进 package.json 的 dsh.client.inject：inject 是硬前置，写进去
   // 会让插件在缺少该服务的内核上整体不加载，而我们要的是「有没有都活」。
   ctx.inject(['sidebarRightTabs', 'sidebarRight'], (kernelCtx) => {
-    if (sidebarStore.getPrefs().kernelRightbar === 'legacy') return
+    const pref = sidebarStore.getPrefs().kernelRightbar
+    if (pref === 'legacy') {
+      console.info('[dsh-better-sidebar] 内核右栏接入：跳过（设置里的 kernelRightbar = legacy，按用户选择走自绘浮层）')
+      return
+    }
     const seam = readKernelRightbarSeam(kernelCtx as unknown as Context)
-    if (seam === null) return
+    if (seam === null) {
+      // 服务在位但形状不对：这是「右栏白板 + 右上角浮层钮」的另一种成因，必须响亮。
+      console.warn('[dsh-better-sidebar] 内核右栏接入失败：sidebarRightTabs/sidebarRight 的接口形状不符合预期，退回自绘浮层')
+      return
+    }
     ctx.effect(
       () => integrateKernelRightbar(ctx, sidebarStore, seam),
       'dsh-better-sidebar: kernel right bar',
     )
   })
+  // 集成会在两种情况下静默不发生：内核根本没有右栏（没有该服务，回调永不触发），
+  // 或者用户把 kernelRightbar 设成了 legacy。两者的界面症状一模一样（右栏那格空白 +
+  // 右上角浮层按钮），所以启动后一次性把结论写进控制台，别让人靠猜。
+  globalThis.setTimeout(() => {
+    if (isKernelRightbarActive()) return
+    console.warn(
+      '[dsh-better-sidebar] 内核右栏接入未生效：右侧工作台不会出现在内核右栏里，'
+      + '插件将按 legacy 自绘浮层工作。若内核确实带右栏，请检查设置里 dsh-better-sidebar 的 '
+      + 'kernelRightbar 开关（当前值：'
+      + String(sidebarStore.getPrefs().kernelRightbar) + '）。',
+    )
+  }, 6000)
   // A failure anywhere in the client lifecycle must never take the app down
   // silently: log with the plugin prefix and pin a visible diagnostic strip
   // to the page so a blank panel is never the only symptom.

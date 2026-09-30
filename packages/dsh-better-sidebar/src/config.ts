@@ -5,7 +5,7 @@
  * @module dsh-better-sidebar/config
  */
 
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 import {
   SIDEBAR_PREFS_DEFAULTS,
   SIDEBAR_PREFS_NS,

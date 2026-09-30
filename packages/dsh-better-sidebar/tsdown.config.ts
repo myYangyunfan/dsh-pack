@@ -68,6 +68,18 @@ const CLIENT_EXTERNALS = [
 ]
 
 /**
+ * This package's own name — the OFFICIAL-channel bundle registration id.
+ *
+ * 必须从 package.json 的 `name` 推导，不能写字面量：内核 boot graph 行以包名为键，
+ * `register()` 以 `stripClientSuffix(registration.id)` 做键，两者不一致时那一行永远
+ * 等不到注册，加载器会退回去再执行一次 fallback URL，于是同一个 bundle 执行两次 →
+ * `duplicate factory registration` → `web boot: 1 entry did not activate` → 官方客户端
+ * 拒绝启动并触发 profile 恢复（用户的模型配置就是这么被抹掉的，2026-09-30 实测）。
+ * 用 `require` 而不是 import assertion，是为了让 tsdown 的配置加载器两侧都吃得下。
+ */
+const PACKAGE_NAME: string = (require('./package.json') as { name: string }).name
+
+/**
  * react-icons' exports map lists `require` BEFORE `import`, so the shared
  * conditionNames resolve the unshakeable CJS entry and the whole icon set
  * lands in the core bundle (~6.4 MB extra). Pin the two sets the client
@@ -341,8 +353,10 @@ export default [
     // emitted (and `watch` must never touch them).
     clean: false,
   },
-  // Official profile channel: bundle id = package name (package.json `name`).
-  clientBundle('dsh-better-sidebar', 'client.js'),
+  // Official profile channel: bundle id = package name (package.json `name`,
+  // i.e. `@dsh-pack/dsh-better-sidebar`) — see PACKAGE_NAME for why this must
+  // never be a literal again.
+  clientBundle(PACKAGE_NAME, 'client.js'),
   // Plugin-registry channel: bundle id = manifest id (dsh.plugin.json `id`).
   clientBundle('dsh-external/dsh-better-sidebar', 'client-registry.js'),
   // Lazy chunks: shared by both channels, fetched on first use through the

@@ -36,7 +36,7 @@ import { IconCloseFill14, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context, SidebarSessionList } from '../context-types.ts'
 import { appendToDraft } from './conversation-draft.ts'
 import {
-  BOTTOM_MIN, PANEL_MIN, maxPanelWidthFor, agentUuidOf, firstLeaf, isAgentTabId, leafWithTab, migrateBottomTabs, moveTab, moveTabToEdge, openDiffTab,
+  BOTTOM_MIN, PANEL_MIN, maxPanelWidthFor, agentUuidOf, firstLeaf, isAgentTabId, leafWithTab, makeDefaultState, migrateBottomTabs, moveTab, moveTabToEdge, openDiffTab,
   reconcileAgentTerminals,
   resizeSplitIn, setBottomHeight, setExplorerWidth, setWidth, toggleBottomPanel, toggleExpanded, toggleExplorer, togglePanel,
   type DropZone, type SidebarState, type SidebarStore, type SidebarTab, type SplitNode,
@@ -276,10 +276,14 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
 
   // Current conversation (the sessions list feed).
   const sessionList = useSyncExternalStore(
-    useMemo(() => (callback: () => void) => ctx.sessions.list.subscribe(callback), [ctx]),
-    useCallback(() => ctx.sessions.list.getSnapshot(), [ctx]),
+    useMemo(() => (callback: () => void) => ctx.sessions?.list?.subscribe(callback) ?? (() => {}), [ctx]),
+    useCallback(() => ctx.sessions?.list?.getSnapshot() ?? { ids: [], byId: {} }, [ctx]),
   )
-  const current = sessionList.current
+  const current = (
+    sessionList.current ??
+    Object.values(sessionList.byId ?? {}).find((session) => (session.retainedBy?.mainView ?? 0) > 0)?.id ??
+    (sessionList as unknown as { ids?: string[] }).ids?.[0]
+  )
 
   // Per-session sidebar state.
   const snapshot = useSyncExternalStore(
@@ -288,9 +292,22 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   )
   useEffect(() => { store.setSession(current) }, [current, store])
 
-  const state = snapshot.state
-  const sessionId = snapshot.sessionId
-  const summaryCwd = sessionId === undefined ? undefined : sessionList.byId[sessionId]?.cwd
+  const rawState = snapshot.state
+  const rawSessionId = snapshot.sessionId
+  /**
+   * 集成模式下 `state` 必须**永远有值**：内核右栏那一格只由下面的 `<MaybePortal>`
+   * 填充，而它是本组件渲染的一部分 —— 只要这里提前返回，那一格就是白的。
+   * 会话状态要等 `setSession` 的 effect 落地，所以「已挂载但状态还没到」是必经的一帧；
+   * 退到一份默认状态渲染，pane 立刻有内容，状态到了自然换成真的。
+   * legacy 模式下沿用原语义（无会话时下面的分支直接返回空宿主）。
+   *
+   * 兜底对象必须 useMemo 固定身份：`state` 挂在若干 effect 的依赖里，每次渲染换新对象
+   * 会让它们每帧都跑一遍。
+   */
+  const fallbackState = useMemo(() => makeDefaultState(), [])
+  const state = rawState ?? fallbackState
+  const sessionId = rawSessionId ?? current
+  const summaryCwd = sessionId === undefined ? undefined : sessionList.byId?.[sessionId]?.cwd
 
   // The collapsed toggle cluster reclaims the top-right corner, so the DSH
   // session header's right-aligned utilities (the "Session log" download
@@ -299,7 +316,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   // it — an open panel already squeezes `#root` left, moving the header clear.
   // 集成模式下右侧面板的开关是内核头部的展开按钮（我们不再占角落、不压 #root），
   // 故这条属性不设，layout.css 的让位规则自然失配。
-  const collapsed = !integrated && (state === undefined || !state.panelOpen)
+  const collapsed = !integrated && (rawState === undefined || !state.panelOpen)
   useEffect(() => {
     if (collapsed) document.body.setAttribute('data-dsh-sidebar-collapsed', '')
     else document.body.removeAttribute('data-dsh-sidebar-collapsed')
@@ -478,7 +495,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       if (!store.getPrefs().autoOpenSubagent) return
       if (ctx.betterSidebar?.isTabEnabled('subagent') === false) return
       // 集成模式：右栏的开关归内核，交给它展开（我们的面板在 pane 里常显）。
-      if (!ensureKernelRightbarOpen()) store.reduce(s => s.panelOpen ? s : togglePanel(s))
+      if (!ensureKernelRightbarOpen(sessionId)) store.reduce(s => s.panelOpen ? s : togglePanel(s))
       // Pin the landing to the right panel: the auto-opened Subagent page must
       // appear where the panel just expanded, not in a bottom-panel pane the
       // user last touched.
@@ -512,7 +529,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     if (!detectNewJob(prev, sessionList, sessionId)) return
     if (!store.getPrefs().autoOpenJobs) return
     if (ctx.betterSidebar?.isTabEnabled('subagent') === false) return
-    if (!ensureKernelRightbarOpen()) store.reduce(s => s.panelOpen ? s : togglePanel(s))
+    if (!ensureKernelRightbarOpen(sessionId)) store.reduce(s => s.panelOpen ? s : togglePanel(s))
     store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
     ctx.betterSidebar?.openTab({ type: 'subagent', title: t('subagent') })
   }, [sessionList, sessionId, store, ctx])
@@ -533,7 +550,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     const pending = subagentJumpRef.current
     if (pending === undefined || sessionId !== pending) return
     subagentJumpRef.current = undefined
-    if (!ensureKernelRightbarOpen()) store.reduce(s => s.panelOpen ? s : togglePanel(s))
+    if (!ensureKernelRightbarOpen(sessionId)) store.reduce(s => s.panelOpen ? s : togglePanel(s))
     store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
     ctx.betterSidebar?.openTab({ type: 'subagent', title: t('subagent') })
   }, [sessionId, store, ctx])
@@ -716,7 +733,9 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     // workbenches merge into one panel), so the first-expansion auto
     // terminal is a desktop-only behavior.
     if (narrow) return
-    if (state === undefined) return
+    // 跟踪的必须是**真实**状态：用兜底对象会让「持久化为打开」被误判成一次展开，
+    // 从而在启动时凭空拉起终端（见上面的注释）。
+    if (rawState === undefined) return
     const wasOpen = bottomWasOpenRef.current
     bottomWasOpenRef.current = state.bottomOpen
     if (wasOpen === undefined || wasOpen || !state.bottomOpen) return
@@ -1047,26 +1066,48 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     appendToDraft(ctx, sessionId, `@${relativeTo(cwd ?? '', path)}`)
   }, [ctx, sessionId, cwd])
 
-  if (state === undefined || sessionId === undefined) {
+  // 没有会话时的处理。
+  // legacy：右侧面板是我们自己画的浮层，没有会话时显示不可用的切换按钮，避免用户找不到入口。
+  // 集成：通过 MaybePortal 把占位内容注入内核右栏那一格，避免右栏白屏。
+  if (sessionId === undefined) {
     return (
       <div data-dsh-panel-host {...osFileDragShield}>
-        {/* 集成模式：底部面板的开关在内核右栏标签条里（此处无会话、面板也没有内容），
-            浮层钮簇整体不渲染。 */}
         {!integrated && (
-        <div className={css.toggleCluster} data-dsh-toggle-cluster>
-          {!narrow && (
+          <div className={css.toggleCluster} data-dsh-toggle-cluster>
+            {!narrow && (
+              <Tooltip label={t('noSession')} side="bottom" delayMs={500}>
+                <button type="button" className={css.toggleButton} disabled aria-label={t('noSession')}>
+                  <IconPanelBottomOutline16 />
+                </button>
+              </Tooltip>
+            )}
             <Tooltip label={t('noSession')} side="bottom" delayMs={500}>
               <button type="button" className={css.toggleButton} disabled aria-label={t('noSession')}>
-                <IconPanelBottomOutline16 />
+                <IconPanelRightOutline16 />
               </button>
             </Tooltip>
-          )}
-          <Tooltip label={t('noSession')} side="bottom" delayMs={500}>
-            <button type="button" className={css.toggleButton} disabled aria-label={t('noSession')}>
-              <IconPanelRightOutline16 />
-            </button>
-          </Tooltip>
-        </div>
+          </div>
+        )}
+        {integrated && (
+          <MaybePortal to={kernelPane} hideWhenNoTarget={integrated}>
+            <div
+              data-dsh-empty-note
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%',
+                padding: '16px',
+                textAlign: 'center',
+                color: 'var(--dsw-alias-label-secondary, #888)',
+                fontSize: '13px',
+                lineHeight: 1.6,
+              }}
+            >
+              {t('noSession')}
+            </div>
+          </MaybePortal>
         )}
       </div>
     )
@@ -1121,6 +1162,9 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
    * open/closed state it gates live views (the Subagent topology pauses its
    * polling while the page is not actually visible). The pane id travels
    * with the tab so diff tabs can split below their source pane.
+   *
+   * 集成模式下右栏的显隐归内核（面板只要被 portal 出来就是可见的），`panelOpen` 是
+   * legacy 浮层自己的开关，不能拿它去骗 live view 说「看不见」。
    */
   const renderTab = (tab: SidebarTab, active: boolean, paneId: string, bottom = false) => (
     <TabContent
@@ -1133,7 +1177,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       onReferenceFile={referenceInChat}
       ctx={ctx}
       store={store}
-      visible={bottom ? state.bottomOpen && active : state.panelOpen && active}
+      visible={bottom ? state.bottomOpen && active : (integrated || state.panelOpen) && active}
       onSubagentJump={(childSessionId) => { subagentJumpRef.current = childSessionId }}
       onOpenDiff={(diffTab) => { store.reduce(s => openDiffTab(s, paneId, diffTab)) }}
       localeRevision={localeRevision}

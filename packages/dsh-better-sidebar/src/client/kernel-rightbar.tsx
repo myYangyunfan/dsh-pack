@@ -36,9 +36,17 @@ export interface KernelRightbarSeam {
   /** 第一段：注册标签类型。 */
   registerType(definition: KernelRightbarDefinition): () => void
   /** 打开（或聚焦）我们的页面标签；同 kind 的页面标签在同一个 pane 里唯一，故可重复调用。 */
-  openTab(kind: string): void
+  openTab(kind: string, options?: unknown): void
+  /** 在指定会话中打开标签（直接通过 session 映射，无需依赖 DOM 绑定 ready）。 */
+  openTabIn?(sessionId: string, kind: string, options?: unknown): void
   /** 右栏当前是否展开（轮询式读取，用于「展开即见工作台」）。 */
   isExpanded(): boolean
+  /** 检查会话当前已经打开的标签列表。 */
+  tabsIn?(sessionId: string): Array<{ id?: string; kind?: string }>
+  /** 当前挂载的会话 SnapshotStore。 */
+  mounted?: { getSnapshot(): string | undefined; subscribe(cb: () => void): () => void }
+  /** 打开的标签清单 SnapshotStore。 */
+  openTabs?: { getSnapshot(): unknown; subscribe(cb: () => void): () => void }
 }
 
 /** 传给内核的类型定义（字段与内核 SidebarRightTabDefinition 一致）。 */
@@ -60,7 +68,14 @@ export interface KernelRightbarDefinition {
 export function readKernelRightbarSeam(ctx: Context): KernelRightbarSeam | null {
   const anyCtx = ctx as unknown as {
     sidebarRightTabs?: { register?: unknown }
-    sidebarRight?: { openTab?: unknown; isExpanded?: unknown }
+    sidebarRight?: {
+      openTab?: unknown
+      openTabIn?: unknown
+      isExpanded?: unknown
+      tabsIn?: unknown
+      mounted?: { getSnapshot(): string | undefined; subscribe(cb: () => void): () => void }
+      openTabs?: { getSnapshot(): unknown; subscribe(cb: () => void): () => void }
+    }
   }
   const tabs = anyCtx.sidebarRightTabs
   const right = anyCtx.sidebarRight
@@ -69,8 +84,12 @@ export function readKernelRightbarSeam(ctx: Context): KernelRightbarSeam | null 
   return {
     registerType: (definition) =>
       (tabs.register as (d: KernelRightbarDefinition) => () => void).call(tabs, definition),
-    openTab: (kind) => (right.openTab as (k: string) => void).call(right, kind),
+    openTab: (kind, options) => (right.openTab as (k: string, opts?: unknown) => void).call(right, kind, options),
+    openTabIn: typeof right.openTabIn === 'function' ? (s, k, opts) => (right.openTabIn as Function).call(right, s, k, opts) : undefined,
     isExpanded: () => (right.isExpanded as () => boolean).call(right),
+    tabsIn: typeof right.tabsIn === 'function' ? (s) => (right.tabsIn as Function).call(right, s) : undefined,
+    mounted: right.mounted,
+    openTabs: right.openTabs,
   }
 }
 
@@ -110,6 +129,18 @@ export function useKernelRightbarActive(): boolean {
     () => integrationActive,
     () => false,
   )
+}
+
+/**
+ * Non-React read of {@link integrationActive}, for the startup diagnostic in
+ * index.tsx. Integration being OFF is what leaves the right sidebar's pane
+ * blank and brings the legacy corner buttons back — and it fails *silently*
+ * (the optional `ctx.inject` callback simply never fires, or the seam probe
+ * returns null). Logging the state once at boot is the only way to tell
+ * "this kernel has no right bar" apart from "activated but rendered nothing".
+ */
+export function isKernelRightbarActive(): boolean {
+  return integrationActive
 }
 
 function setKernelPaneEl(el: HTMLElement | null): void {
@@ -235,6 +266,18 @@ export function KernelRightbarBody(_props: { sessionId?: string }) {
  * button then lands on the workbench instead of the guide. Gated by the
  * `kernelRightbarAutoOpen` pref.
  */
+function getActiveSessionId(ctx: Context, store: SidebarStore): string | undefined {
+  const storeId = store.getSnapshot().sessionId
+  if (storeId) return storeId
+  const anyCtx = ctx as unknown as { sessions?: { list?: { getSnapshot?: () => { byId?: Record<string, { id?: string; retainedBy?: { mainView?: number } }>; ids?: string[] } } } }
+  const list = anyCtx.sessions?.list?.getSnapshot?.()
+  if (!list) return undefined
+  return (
+    Object.values(list.byId ?? {}).find((s) => (s.retainedBy?.mainView ?? 0) > 0)?.id ??
+    list.ids?.[0]
+  )
+}
+
 export function integrateKernelRightbar(
   ctx: Context,
   store: SidebarStore,
@@ -261,7 +304,7 @@ export function integrateKernelRightbar(
   }, KernelRightbarBody))
   const stopWatching = store.getPrefs().kernelRightbarAutoOpen === false
     ? () => {}
-    : watchKernelExpansion(seam, () => store.getSnapshot().sessionId)
+    : watchKernelExpansion(seam, () => getActiveSessionId(ctx, store))
   return () => {
     stopWatching()
     disposeBody()
@@ -279,32 +322,82 @@ export function integrateKernelRightbar(
  * @returns whether the kernel right bar handled it — false means the caller should
  *   run the legacy panel toggle instead.
  */
-export function ensureKernelRightbarOpen(): boolean {
+export function ensureKernelRightbarOpen(sessionId?: string): boolean {
   if (activeSeam === null) return false
-  activeSeam.openTab(KERNEL_RIGHTBAR_KIND)
-  return true
+  try {
+    if (sessionId && activeSeam.openTabIn) {
+      activeSeam.openTabIn(sessionId, KERNEL_RIGHTBAR_KIND)
+      return true
+    }
+    activeSeam.openTab(KERNEL_RIGHTBAR_KIND)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Open our tab on the first expansion of each session (see integrateKernelRightbar). */
 function watchKernelExpansion(seam: KernelRightbarSeam, currentSession: () => string | undefined): () => void {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
   const opened = new Set<string>()
-  const check = (): void => {
-    if (!seam.isExpanded()) return
+
+  const tryOpenWorkbench = (): void => {
     const sessionId = currentSession()
-    if (sessionId === undefined || opened.has(sessionId)) return
-    opened.add(sessionId)
-    seam.openTab(KERNEL_RIGHTBAR_KIND)
+    if (!sessionId || opened.has(sessionId)) return
+
+    if (seam.tabsIn) {
+      try {
+        const tabs = seam.tabsIn(sessionId)
+        if (tabs && tabs.some((t) => t.kind === KERNEL_RIGHTBAR_KIND)) {
+          opened.add(sessionId)
+          return
+        }
+      } catch {
+        // Ignored
+      }
+    }
+
+    try {
+      if (seam.openTabIn) {
+        seam.openTabIn(sessionId, KERNEL_RIGHTBAR_KIND)
+        opened.add(sessionId)
+        return
+      }
+      if (seam.isExpanded()) {
+        seam.openTab(KERNEL_RIGHTBAR_KIND)
+        opened.add(sessionId)
+      }
+    } catch {
+      // Binding not ready yet, will retry on next event/tick
+    }
   }
-  const observer = new MutationObserver(check)
-  // The panel is a kernel-owned element we must not poke at, so we watch the two
-  // attributes it flips (opened / placement) and re-read the controller instead.
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['data-sidebar-right-open', 'data-sidebar-right-panel'],
-  })
-  check()
-  return () => { observer.disconnect() }
+
+  const unmounted = seam.mounted?.subscribe?.(tryOpenWorkbench)
+  const unopenTabs = seam.openTabs?.subscribe?.(tryOpenWorkbench)
+
+  let observer: MutationObserver | null = null
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    observer = new MutationObserver(() => {
+      tryOpenWorkbench()
+    })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-sidebar-right-open', 'data-sidebar-right-panel'],
+    })
+  }
+
+  tryOpenWorkbench()
+  const timer1 = globalThis.setTimeout(tryOpenWorkbench, 200)
+  const timer2 = globalThis.setTimeout(tryOpenWorkbench, 800)
+  const timer3 = globalThis.setTimeout(tryOpenWorkbench, 2000)
+
+  return () => {
+    unmounted?.()
+    unopenTabs?.()
+    observer?.disconnect()
+    globalThis.clearTimeout(timer1)
+    globalThis.clearTimeout(timer2)
+    globalThis.clearTimeout(timer3)
+  }
 }
