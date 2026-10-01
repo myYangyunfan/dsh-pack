@@ -1,7 +1,7 @@
 # DSH Pack
 
 > 装进**官方 DeepSeek Harness 桌面客户端**的插件整合包。
-> 32 个插件，装 `@dsh-pack/all` 一个包就齐了。
+> 29 个插件，装 `@dsh-pack/all` 一个包就齐了。
 
 <p align="center"><img src="docs/banner.svg" alt="DSH Pack" width="720"/></p>
 
@@ -34,12 +34,12 @@
 ```text
 https://github.com/myYangyunfan/dsh-pack.git
 ```
-- **无需等待 npm 发版**：直接拉取最新代码，一键装齐全部 32 个插件。
+- **无需等待 npm 发版**：直接拉取最新代码，一键装齐全部 29 个插件。
 - 仓库根目录已内置自装载描述与聚合补丁（`cordis.patch.yml`），由客户端直接识别装配。
 
 ### 方式 B：按 npm 包名安装（`@dsh-pack/all`）
 
-在输入框输入 `@dsh-pack/all` 即可一键装齐全部 32 个插件。
+在输入框输入 `@dsh-pack/all` 即可一键装齐全部 29 个插件。
 或直接对会话中的 Agent 说：「用 install_bundle 装 `@dsh-pack/all`」。
 
 > **命令行装不了。** `dsh plugin --profile desktop …` 会被官方 CLI 硬拦
@@ -88,8 +88,6 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 - **`dsh-balance`** 余额坞：会话区显示账户余额 + 本轮估算费用，含峰谷价与周末折扣判定。
   官方客户端本身**没有**任何余额功能，这是本包补的最大一个洞。
 - **`dsh-file-changes` / `dsh-client-file-changes`** 「本会话改了哪些文件」视图 + 逐条 diff + **一键还原**。
-- **`dsh-image-paste`** 剪贴板图片直接粘进输入区（落成临时文件并给出路径提示）。
-- **`dsh-file-drop`** 从资源管理器拖文件进输入区，走内核原生附件通道。
 - **`dsh-input-history`** 像终端那样用 ↑/↓ 翻本会话发过的消息；**`dsh-input-fold`** 折叠超长 prompt。
 - **`dsh-auto-compact`** 接近上下文上限时自动 `/compact`。
 - **`dsh-change-review`** 让模型复核自己刚写的改动（正确性 / 安全 / 是否切题）。
@@ -109,7 +107,6 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 - **`dsh-basics-panel`** 一处集中查看/管理 MCP server、skills、rules。
 - **`dsh-synapse`** 可拖拽缩放的非线性会话画布（分支、追问）。
 - **`dsh-reasoning-effort`** 从模型目录取 `reasoning.efforts` 的 Codex 风格模型/思考档位选择器。
-- **`dsh-vision`** 给纯文本的 DeepSeek 补一个 `view_image` 工具（走任意 OpenAI 兼容 VLM）。
 - **`dsh-prompt-optimizer`** 一键把输入区草稿打磨成结构化 prompt。
 - **`dsh-community-market`** 可视化插件市场：开放目录源、搜索、校验过的 npm 安装、开关与回执。
 - **`dsh-zcode-migrate`** 把 zcode CLI 的 SQLite 历史转成原生 dsh 会话日志。
@@ -130,6 +127,8 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 - **`compaction`** — 用 ACP 模型驱动的上下文裁剪替换内置压缩后端。
 
 完整清单与每个插件的开关，装好之后在「设置 → 插件」里能直接看到。
+
+> **已退役成员**：`dsh-vision`（识图）、`dsh-file-drop`（文件拖拽/导入）及 `dsh-image-paste`（图片粘贴）已退役并移出元包，因官方客户端已全面原生支持输入框附件导入、文件拖拽导入、剪贴板图片粘贴与多模态端点识图，避免与官方功能重复与冲突。
 
 ---
 

@@ -1,42 +1,27 @@
 {
   "name": "@dsh-pack/dsh-prompt-custom",
-  "version": "0.1.2",
-  "description": "在 DSH 设置页自定义官方内核注入的提示词（替换整体/追加，应用到 standard 完整 Agent 基准预设）",
-  "type": "module",
-  "main": "lib/index.js",
-  "exports": {
-    ".": {
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "default": "./lib/client.js"
-    },
-    "./package.json": "./package.json"
-  },
+  "version": "0.3.5",
+  "description": "自定义 System Prompt：覆盖或追加 DeepSeek Harness 官方默认系统提示词（独立移植版，不依赖内核 settings API）",
   "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": "cordis.patch.yml"
     },
     "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-primitives"
-      ],
-      "external": [
-        "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-primitives/client"
-      ],
+      "entry": "client",
       "platform": "web"
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "*",
-    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6 <2",
-    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <2",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.6 <2",
-    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.6 <2",
-    "react": ">=18"
+    "@deepseek-ai/cordis": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh": ">=0.1.0-rc.6 <2",
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <2"
   },
   "files": [
     "LICENSE",

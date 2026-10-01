@@ -23,16 +23,6 @@
           "purpose": "「文件」视图：会话文件更改追踪 + 一键还原"
         },
         {
-          "dir": "dsh-file-drop",
-          "tierOf": "core",
-          "purpose": "选中上传 + 拖入文件到对话，图片走内核官方附件管道"
-        },
-        {
-          "dir": "dsh-image-paste",
-          "tierOf": "core",
-          "purpose": "粘贴图片自动落临时目录并把完整路径注入输入框"
-        },
-        {
           "dir": "dsh-input-fold",
           "tierOf": "core",
           "purpose": "超长用户提示词默认折叠为前几行，点击展开全文"
@@ -111,11 +101,6 @@
           "dir": "dsh-reasoning-effort",
           "tierOf": "plus",
           "purpose": "Codex 风格「模型 + 推理强度」选择器"
-        },
-        {
-          "dir": "dsh-vision",
-          "tierOf": "plus",
-          "purpose": "识图：为纯文本模型提供 view_image 工具，走任意 OpenAI 兼容 VLM 端点"
         },
         {
           "dir": "dsh-synapse",
@@ -203,6 +188,18 @@
     {
       "dir": "dsh-terminal-tab",
       "reason": "与上游 @deepseek-ai/dsh-client-ui-sidebar-terminal（loader id ui-sidebar-terminal）功能重叠，去重结论待验证。已保证可独立自挂载（自带 cordis.patch.yml + dsh.bundle.patch），但不进任何元包；验证后再决定入 plus 层或摘除。"
+    },
+    {
+      "dir": "dsh-vision",
+      "reason": "官方客户端已原生内置多模态识图与端点支持，由官方原生能力替代，从元包与默认分层摘除退役。"
+    },
+    {
+      "dir": "dsh-file-drop",
+      "reason": "官方客户端已原生内置 composer 附件导入按钮与拖拽文件导入，由官方原生能力替代，从元包与默认分层摘除退役。"
+    },
+    {
+      "dir": "dsh-image-paste",
+      "reason": "官方客户端已原生内置剪贴板图片粘贴为原生附件，由官方原生能力替代，从元包与默认分层摘除退役。"
     }
   ]
 }

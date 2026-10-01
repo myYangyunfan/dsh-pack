@@ -12,12 +12,6 @@
     # ── dsh-client-file-changes ── 「文件」视图：会话文件更改追踪 + 一键还原
     - id: client-file-changes
       name: './packages/dsh-client-file-changes/lib/index.js'
-    # ── dsh-file-drop ── 选中上传 + 拖入文件到对话，图片走内核官方附件管道
-    - id: file-drop
-      name: './packages/dsh-file-drop/lib/index.js'
-    # ── dsh-image-paste ── 粘贴图片自动落临时目录并把完整路径注入输入框
-    - id: image-paste
-      name: './packages/dsh-image-paste/lib/index.js'
     # ── dsh-input-fold ── 超长用户提示词默认折叠为前几行，点击展开全文
     - id: input-fold
       name: './packages/dsh-input-fold/lib/index.js'
@@ -72,9 +66,6 @@
     # ── dsh-reasoning-effort ── Codex 风格「模型 + 推理强度」选择器
     - id: reasoning-effort
       name: './packages/dsh-reasoning-effort/lib/index.js'
-    # ── dsh-vision ── 识图：为纯文本模型提供 view_image 工具，走任意 OpenAI 兼容 VLM 端点
-    - id: dsh-vision
-      name: './packages/dsh-vision/lib/index.js'
     # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
     - id: synapse
       name: './packages/dsh-synapse/index.js'

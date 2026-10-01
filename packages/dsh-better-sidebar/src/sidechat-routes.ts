@@ -140,7 +140,7 @@ function admitFollowup(agent: Agent, blocks: ContentBlock[]): void {
 function admitFirstContact(agent: Agent, injectionText: string, question: string): void {
   agent.inject(createUserMessage({
     content: textPrompt(injectionText),
-    source: { kind: 'plugin', plugin: SIDE_INJECTION_PLUGIN },
+    source: { kind: `plugin:${SIDE_INJECTION_PLUGIN}` },
   }))
   admitFollowup(agent, textPrompt(question))
 }

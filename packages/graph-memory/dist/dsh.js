@@ -160,7 +160,7 @@ export function apply(ctx, input = {}) {
                     id: randomUUID(),
                     role: "user",
                     content: [{ type: "text", text: user }],
-                    source: { kind: "plugin", plugin: PLUGIN },
+                    source: { kind: `plugin:${PLUGIN}` },
                 }],
         });
         let text = "";

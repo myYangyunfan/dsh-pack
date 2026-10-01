@@ -47,7 +47,7 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 
 | 包 | 内容 | 备注 |
 |---|---|---|
-| `@dsh-pack/all` | 32 个插件（全部成员） | 里面带原生依赖的成员要放行一次构建脚本，见下 |
+| `@dsh-pack/all` | 29 个插件（全部成员） | 里面带原生依赖的成员要放行一次构建脚本，见下 |
 
 装回来不等于全开：补丁层里有三个条目出厂就写着 `disabled: true` ——
 `harness-pet`、`dsh-cardian`、`graph-memory`，要用得在「设置 → 插件」里自己打开，

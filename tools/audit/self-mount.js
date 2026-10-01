@@ -157,6 +157,19 @@ function loadTierMap(repoRoot = REPO_ROOT) {
   }
 }
 
+function loadUntieredDirs(repoRoot = REPO_ROOT) {
+  const tiersPath = path.join(repoRoot, 'tools', 'tiers.json');
+  if (!fs.existsSync(tiersPath)) return new Set();
+  try {
+    const tiers = JSON.parse(fs.readFileSync(tiersPath, 'utf8'));
+    const list = Array.isArray(tiers.untiered) ? tiers.untiered : [];
+    return new Set(list.map((item) => (typeof item === 'string' ? item : item && item.dir)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+
 /**
  * 元包成员重叠判据（P0，纯函数，给测试直接喂合成输入）。
  *
@@ -273,6 +286,7 @@ function run(ctx = {}) {
   }
   const packages = pack.packages;
   const tierMap = ctx.tierMap === undefined ? loadTierMap() : ctx.tierMap;
+  const untieredDirs = ctx.untieredDirs === undefined ? loadUntieredDirs() : ctx.untieredDirs;
   const idOwners = new Map(); // id -> [包相对路径]
   const tierMetas = []; // 元包（目录 meta-*）
   const mountable = []; // 除元包外的自装载包 = 元包依赖表应当列出的那些
@@ -290,7 +304,9 @@ function run(ctx = {}) {
 
     if (isTier) tierMetas.push(pkg);
     else if (!isMeta && decl !== undefined && decl !== null) {
-      mountable.push({ dir: pkg.dirname, name, version: pkg.manifest.version });
+      if (!untieredDirs.has(pkg.dirname)) {
+        mountable.push({ dir: pkg.dirname, name, version: pkg.manifest.version });
+      }
     }
 
     if (decl === undefined || decl === null) {

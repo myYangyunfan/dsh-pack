@@ -2,7 +2,7 @@
 # 改动的正确姿势：改 tools/tiers.json（层与成员）或改成员包自己的
 # cordis.patch.yml（行内容），然后跑 node tools/build-meta-patches.mjs 重新生成。
 #
-# 层：全量层（一次装齐）（meta-all / 发布名 @dsh-pack/all），成员 32 个。
+# 层：全量层（一次装齐）（meta-all / 发布名 @dsh-pack/all），成员 29 个。
 #
 # 为什么元包要自带这些行：docs/spike-official-client.md §0.3 实测——元包光靠
 # dependencies 是惰性的（传递依赖不会成为 bundle，row 也完全不组合，且用户无报错）。
@@ -21,12 +21,6 @@
     # ── dsh-client-file-changes ── 「文件」视图：会话文件更改追踪 + 一键还原
     - id: client-file-changes
       name: '@dsh-pack/dsh-client-file-changes'
-    # ── dsh-file-drop ── 选中上传 + 拖入文件到对话，图片走内核官方附件管道
-    - id: file-drop
-      name: '@dsh-pack/dsh-file-drop'
-    # ── dsh-image-paste ── 粘贴图片自动落临时目录并把完整路径注入输入框
-    - id: image-paste
-      name: '@dsh-pack/dsh-image-paste'
     # ── dsh-input-fold ── 超长用户提示词默认折叠为前几行，点击展开全文
     - id: input-fold
       name: '@dsh-pack/dsh-input-fold'
@@ -81,9 +75,6 @@
     # ── dsh-reasoning-effort ── Codex 风格「模型 + 推理强度」选择器
     - id: reasoning-effort
       name: '@dsh-pack/dsh-reasoning-effort'
-    # ── dsh-vision ── 识图：为纯文本模型提供 view_image 工具，走任意 OpenAI 兼容 VLM 端点
-    - id: dsh-vision
-      name: '@dsh-pack/dsh-vision'
     # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
     - id: synapse
       name: '@dsh-pack/dsh-synapse'

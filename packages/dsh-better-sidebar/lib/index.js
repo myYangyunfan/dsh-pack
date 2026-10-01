@@ -3079,8 +3079,7 @@ function admitFirstContact(agent, injectionText, question) {
 	agent.inject(createUserMessage({
 		content: textPrompt(injectionText),
 		source: {
-			kind: "plugin",
-			plugin: SIDE_INJECTION_PLUGIN
+			kind: `plugin:${SIDE_INJECTION_PLUGIN}`
 		}
 	}));
 	admitFollowup(agent, textPrompt(question));

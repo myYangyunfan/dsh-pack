@@ -791,7 +791,7 @@ function buildNudge(agent, env, lastNudgeTurn) {
   const text = buildNudgeText(nudge, emergency, session, env.prompts);
   const message = createUserMessage2({
     content: [{ type: "text", text }],
-    source: { kind: "plugin", plugin: "acp-nudge" }
+    source: { kind: "plugin:acp-nudge" }
   });
   return { message, emergency };
 }
