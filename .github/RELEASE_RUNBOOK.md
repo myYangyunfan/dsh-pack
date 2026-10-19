@@ -46,6 +46,26 @@
 为什么需要它：官方客户端有**强制更新策略**，内核版本会在我们不参与的情况下前进。
 需要一条能让真实用户先验证「新内核下还挂不挂得上」的通道，而不是等正式版撞车。
 
+## 供应链年龄门禁与 `@dsh-pack` 豁免
+
+`pnpm-workspace.yaml` 里这条不是可选装饰，别顺手删：
+
+```yaml
+minimumReleaseAgeExclude:
+  - '@dsh-pack/*'
+```
+
+pnpm 11 默认带 24h 的 `minimumReleaseAge` 供应链门禁 —— 它要按 registry 上的发布时间来判，
+而 `@dsh-pack/*` 是我们自己的包：**每次发版拿到的都是刚发布的版本**，必然落在窗口里被 fail-closed。
+2026-10-19 实测形状就是 CI 的 `pnpm install --frozen-lockfile=false --ignore-scripts` 当场报
+`[ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION] 24 lockfile entries failed verification`
+（逐条附 `GET https://registry.npmjs.org/@dsh-pack%2F…: Not Found - 404`——没发布过就取不到发布时间）。
+豁免只放自己的 scope，外部依赖的年龄校验一字不动；**即便将来真发到 npm，这两行仍要留着**，
+否则每次 release 后的首个 CI 都会这样红一遍。
+
+反证（本机同一条命令，只改这两行的有无）：加上 → `✓ Lockfile passes supply-chain policies (1674 entries)`
+且 `pnpm-lock.yaml` 一字节不动；撤掉 → exit 1，报的就是 CI 那句 24 条违规。
+
 ## 重生成 pnpm-lock.yaml
 
 `pnpm-lock.yaml` 只有在 `@dsh-pack/*` 可解析时才重得动 —— pnpm 10+ 默认
@@ -60,14 +80,16 @@ node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge \
 # ④ 临时把 @dsh-pack:registry=http://127.0.0.1:14874/ 加进 ~/.npmrc，然后：
 pnpm install --lockfile-only --ignore-scripts
 pnpm install --frozen-lockfile --ignore-scripts                     # ⑤ 用它绿 = lock 与全部 package.json 咬合
-# ⑥ 收尾：删掉 ~/.npmrc 那一行、停 verdaccio
+# ⑥ 收尾：删掉 ~/.npmrc 那一行、停 verdaccio，再把包内 node_modules 清回去（见下面「副作用」）
 ```
+
+> 第 ④ 步以前还要在 `pnpm-workspace.yaml` 里临时写 `minimumReleaseAge: 0` 才跑得动；
+> 现在上面那条豁免已经覆盖 `@dsh-pack/*`，而本机被点名的只有这个 scope，所以不必再动配置
+> （CLI 也没有 `--minimum-release-age` 这个选项，写了只会 `Unknown option`）。
 
 两条会当场拦住你的策略，都是真的，别绕过去骗自己：
 
-- **`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`**：pnpm 11 的供应链门禁有 24h 窗口，而本机刚发上去的
-  自有包必然落在窗口里。只能在 `pnpm-workspace.yaml` 里临时写 `minimumReleaseAge: 0` 跑完再删
-  （CLI 没有 `--minimum-release-age` 这个选项，写了只会 `Unknown option`）。
+- **年龄门禁**：见上一节。它拦的是「发布时间取不到 / 太新」，不是包体有问题。
 - **lock 里不会留下本机地址**：`@dsh-pack` 条目只记 `integrity`，tarball 地址由安装时的
   registry 配置推导。所以本机发的那份 lock 与将来 npm 上的同一版本**字节等价**（同一 `npm pack`
   产物 → 同一 sha512），不需要事后改 host。

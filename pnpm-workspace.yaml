@@ -9,3 +9,8 @@ packages:
 
 nodeLinker: hoisted
 autoInstallPeers: false
+
+# pnpm 11 的供应链年龄门禁只对外部包有意义：@dsh-pack/* 是我们自己的包，
+# 每次发版都是刚发布，落在 24h 窗口里必然被判违规（CI 实测 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION）。
+minimumReleaseAgeExclude:
+  - '@dsh-pack/*'
