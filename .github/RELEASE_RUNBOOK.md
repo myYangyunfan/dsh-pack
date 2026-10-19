@@ -46,6 +46,43 @@
 为什么需要它：官方客户端有**强制更新策略**，内核版本会在我们不参与的情况下前进。
 需要一条能让真实用户先验证「新内核下还挂不挂得上」的通道，而不是等正式版撞车。
 
+## 重生成 pnpm-lock.yaml
+
+`pnpm-lock.yaml` 只有在 `@dsh-pack/*` 可解析时才重得动 —— pnpm 10+ 默认
+`link-workspace-packages: false`，所以即便成员都在本仓 workspace 里，`^x.y.z` 声明仍然
+要去 registry 取。没发 npm 之前的正解是走本机预览 registry（实测 2026-10-19，全流程约 3 分钟）：
+
+```bash
+node tools/preview-registry.mjs                                   # ① 起 verdaccio（14873/14874）
+node tools/codemod/preview-registry-login.mjs 14874                # ② 写独立凭证文件，不碰 ~/.npmrc
+node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge \
+  --userconfig="$TEMP/dsh-preview-npmrc"                            # ③ 全量发（--purge 防同版本陈旧内容）
+# ④ 临时把 @dsh-pack:registry=http://127.0.0.1:14874/ 加进 ~/.npmrc，然后：
+pnpm install --lockfile-only --ignore-scripts
+pnpm install --frozen-lockfile --ignore-scripts                     # ⑤ 用它绿 = lock 与全部 package.json 咬合
+# ⑥ 收尾：删掉 ~/.npmrc 那一行、停 verdaccio
+```
+
+两条会当场拦住你的策略，都是真的，别绕过去骗自己：
+
+- **`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`**：pnpm 11 的供应链门禁有 24h 窗口，而本机刚发上去的
+  自有包必然落在窗口里。只能在 `pnpm-workspace.yaml` 里临时写 `minimumReleaseAge: 0` 跑完再删
+  （CLI 没有 `--minimum-release-age` 这个选项，写了只会 `Unknown option`）。
+- **lock 里不会留下本机地址**：`@dsh-pack` 条目只记 `integrity`，tarball 地址由安装时的
+  registry 配置推导。所以本机发的那份 lock 与将来 npm 上的同一版本**字节等价**（同一 `npm pack`
+  产物 → 同一 sha512），不需要事后改 host。
+
+副作用要说清楚：第 ⑤ 步会把依赖真装进 `node_modules`，`nodeLinker: hoisted` 装不下的版本会落进
+`packages/<包>/node_modules/` —— 里面**包含内核 `@deepseek-ai` 的拷贝**，正是 `kernel-shadow`
+门禁拦的形状，而 `packages/billion-context-dsh/node_modules/acp-kernel` 与
+`packages/dsh-pocket/node_modules` 是**入库目录**，会被就地改写。跑完必须清回去：
+
+```bash
+git clean -fdX -- "packages/*/node_modules"                # 只删未入库（含 ignored）的新增
+git checkout -- packages/billion-context-dsh/node_modules packages/dsh-pocket/node_modules
+node tools/audit/index.js                                  # kernel-shadow 应回到只报 dsh-pocket 一条
+```
+
 ## 内核漂移
 
 `kernel-drift.yml` 每夜取 `@deepseek-ai/dsh@latest`，重新生成包名 / loader id 快照并比对，
@@ -72,8 +109,6 @@ CI 覆盖不到的必须手点一遍，逐条对照：
       「did not activate」/ `webserver: duplicate exact route`（装了 `all` 就别再单装成员，
       内核的 `insert` 不去重，同 id 插两次就是双装配）
 - [ ] 关掉一个插件 → 重启后真的生效
-- [ ] 装 `@dsh-pack/all` 时若报 `ERR_PNPM_IGNORED_BUILDS` 并点名 `@photostructure/sqlite`
-      （它由 `all` 里的 `graph-memory` 带进来），点「Allow these scripts and retry」后成功
 - [ ] 故意在 profile 补丁层放一条坏行触发恢复对话框，确认 `docs/recovery.md` 的
       重新添加步骤确实能把包恢复回来（`sanitizeProfile` 会把整个包抹掉，这是已知行为）
 
