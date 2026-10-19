@@ -66,6 +66,19 @@ pnpm 11 默认带 24h 的 `minimumReleaseAge` 供应链门禁 —— 它要按 r
 反证（本机同一条命令，只改这两行的有无）：加上 → `✓ Lockfile passes supply-chain policies (1674 entries)`
 且 `pnpm-lock.yaml` 一字节不动；撤掉 → exit 1，报的就是 CI 那句 24 条违规。
 
+年龄门过了之后，红点会往前挪一格变成 **`ERR_PNPM_FETCH_404`**：pnpm 去 npmjs 取
+`@dsh-pack/<成员>-<版本>.tgz`（没发布过就是 404）。所以 CI 与 Release 里**每一条** `pnpm install`
+都带 `--filter '!@dsh-pack/all'` —— 全仓只有元包 `packages/meta-all` 声明这 24 个依赖，把它们
+排除掉，install 就只需要外部包 + 根 devDeps；静态审计与单测读的是源码，不受影响，而真正按
+registry 语义验证的是 J1/J2（它们在自己的临时 home 里装 tarball / 按名装）。
+这条接线有 5 处（ci.yml 两条、release.yml 三条），漏一处就是整条 job 红：
+`packages/meta-all/test/workflow-install-filter.test.mjs` 把它钉成回归锁，并自带变异反证。
+
+> 为什么不用 `linkWorkspacePackages: true` 治：实测那样确实能让 install 绿（本机 65s exit 0），
+> 但 pnpm 会顺手把 lock 里的 `@dsh-pack` 条目改写成 `version: link:../…`（本次实测
+> -3192 行），而 `pnpm-workspace.yaml` 头部写着本仓要与用户 profile 的解析语义保持一致——
+> 用户那边这些包是按 registry 解析的。filter 只影响「装谁」，不改语义也不改 lock 形状。
+
 ## 重生成 pnpm-lock.yaml
 
 `pnpm-lock.yaml` 只有在 `@dsh-pack/*` 可解析时才重得动 —— pnpm 10+ 默认
