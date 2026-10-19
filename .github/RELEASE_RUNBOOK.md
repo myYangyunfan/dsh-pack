@@ -46,7 +46,7 @@
 为什么需要它：官方客户端有**强制更新策略**，内核版本会在我们不参与的情况下前进。
 需要一条能让真实用户先验证「新内核下还挂不挂得上」的通道，而不是等正式版撞车。
 
-## 供应链年龄门禁与 `@dsh-pack` 豁免
+## CI 的 install：年龄豁免 + 自家成员走 workspace 链接
 
 `pnpm-workspace.yaml` 里这条不是可选装饰，别顺手删：
 
@@ -66,51 +66,83 @@ pnpm 11 默认带 24h 的 `minimumReleaseAge` 供应链门禁 —— 它要按 r
 反证（本机同一条命令，只改这两行的有无）：加上 → `✓ Lockfile passes supply-chain policies (1674 entries)`
 且 `pnpm-lock.yaml` 一字节不动；撤掉 → exit 1，报的就是 CI 那句 24 条违规。
 
-年龄门过了之后，红点会往前挪一格变成 **`ERR_PNPM_FETCH_404`**：pnpm 去 npmjs 取
-`@dsh-pack/<成员>-<版本>.tgz`（没发布过就是 404）。所以 CI 与 Release 里**每一条** `pnpm install`
-都带 `--filter '!@dsh-pack/all'` —— 全仓只有元包 `packages/meta-all` 声明这 24 个依赖，把它们
-排除掉，install 就只需要外部包 + 根 devDeps；静态审计与单测读的是源码，不受影响，而真正按
-registry 语义验证的是 J1/J2（它们在自己的临时 home 里装 tarball / 按名装）。
-这条接线有 5 处（ci.yml 两条、release.yml 三条），漏一处就是整条 job 红：
-`packages/meta-all/test/workflow-install-filter.test.mjs` 把它钉成回归锁，并自带变异反证。
+年龄门过了之后，红点会往前挪一格变成 **`ERR_PNPM_FETCH_404`**：pnpm 按 lock 去 npmjs 取
+`@dsh-pack/<成员>-<版本>.tgz`（没发布过就是 404）。**只加 `--filter '!@dsh-pack/all'` 治不了**
+—— 2026-10-19 的 CI 实测：`Scope: 31 of 32 workspace projects` 说明 filter 生效了，同一轮里
+照样报 `[ERR_PNPM_FETCH_404] GET …/@dsh-pack/billion-context-dsh/-/billion-context-dsh-0.2.26.tgz`。
+（本机那次「绿」是假绿：store 里还留着上一次从 verdaccio 装进去的 tarball，压根没发请求。
+判据必须换个地方看，见下。）
 
-> 为什么不用 `linkWorkspacePackages: true` 治：实测那样确实能让 install 绿（本机 65s exit 0），
-> 但 pnpm 会顺手把 lock 里的 `@dsh-pack` 条目改写成 `version: link:../…`（本次实测
-> -3192 行），而 `pnpm-workspace.yaml` 头部写着本仓要与用户 profile 的解析语义保持一致——
-> 用户那边这些包是按 registry 解析的。filter 只影响「装谁」，不改语义也不改 lock 形状。
+决定性的开关是 `pnpm-workspace.yaml` 里的 `linkWorkspacePackages: true`：它让 pnpm 把
+「自家指自家」这一段链到 workspace 目录，于是 lock 记成
+`version: link:../billion-context-dsh` 而不是 registry 解析 —— 现在 lock 的 `packages:` 段里
+`@dsh-pack/*` 条目是 **0 条**，没有任何东西可取，这与 store 里有没有货无关。链接只覆盖
+`@dsh-pack` 这一层；成员对 npm 外部包与内核 peer 的解析照旧走 registry，用户 profile 那边
+的语义不受本仓配置影响。工作流里那 5 处 `--filter '!@dsh-pack/all'` 保留，作用是让 install
+连元包那个 importer 都不必展开 —— 第二层保险，不是主修。
+
+lock 的形状当场可核：
+
+```bash
+node -e "const Y=require('yaml'),f=require('fs');const l=Y.parse(f.readFileSync('pnpm-lock.yaml','utf8'));console.log('lock 里 @dsh-pack 的 registry 条目：',Object.keys(l.packages||{}).filter(k=>k.startsWith('@dsh-pack/')).length)"
+# 期望 0。不是 0 就说明 lock 漂回 registry 形状，CI 会重新 404
+```
+
+`packages/meta-all/test/workflow-install-filter.test.mjs` 钉住「每条 install 都带 filter」，
+两条变异反证都是当场踩出来的：判据第一版按「行里出现 pnpm install」匹配，被 ci.yml 自己的
+说明注释判了两次假红（收紧成只认 `run:` / `install:` 开头）；变异用 `text.replace(REQUIRED,'')`
+删到的也是注释里的字面量，变异体等于原件、反证空跑（改成锚定命令行的正则并断言命中）。
 
 ## 重生成 pnpm-lock.yaml
 
-`pnpm-lock.yaml` 只有在 `@dsh-pack/*` 可解析时才重得动 —— pnpm 10+ 默认
-`link-workspace-packages: false`，所以即便成员都在本仓 workspace 里，`^x.y.z` 声明仍然
-要去 registry 取。没发 npm 之前的正解是走本机预览 registry（实测 2026-10-19，全流程约 3 分钟）：
+**现在完全离线**：`linkWorkspacePackages: true` 之后，`pnpm install --lockfile-only
+--ignore-scripts` 12s 就能重生成（2026-10-19 实测），因为 24 个成员依赖链到 workspace 目录，
+不需要任何 registry。
+
+```bash
+pnpm install --lockfile-only --ignore-scripts    # 只改 lock，不动 node_modules
+pnpm install --frozen-lockfile --ignore-scripts  # 判据：绿 = lock 与全部 package.json 咬合
+```
+
+> ⚠ 后一条会把依赖**真装进** `node_modules`，`nodeLinker: hoisted` 装不下的会落进
+> `packages/<包>/node_modules/`，其中含内核 `@deepseek-ai` 的拷贝 —— 那正是 `kernel-shadow`
+> 拦的形状；而 `packages/billion-context-dsh/node_modules/acp-kernel` 与
+> `packages/dsh-pocket/node_modules` 是**入库目录**，会被就地改写（实测 127 个跟踪文件）。
+> 跑完必须清回去，命令见本节末。
+
+本机预览 registry（`tools/preview-registry.mjs`，verdaccio）现在的用途只剩一个：
+验证**按 registry 解析**的真实安装语义（客户端「设置 → 插件」按名装 `@dsh-pack/all`、
+J2 的 tarball 通道、以及将来真要发到 npm 前的演练）。它不再是重生成 lock 的前提。
+以前那套「起 registry → 发 31 个包 → 改 ~/.npmrc → lockfile-only」的步骤仍然可用，
+2026-10-19 全流程实测约 3 分钟，产出的是 registry 形状的 lock —— 那种 lock 与 npm 上的同版本
+**字节等价**（`@dsh-pack` 条目只记 `integrity`，tarball 地址由安装时的 registry 配置推导，
+同一 `npm pack` 产物 → 同一 sha512）；但把它提交进仓库会让 CI 重新去取 404 的 tarball，
+所以仓库里存的是链接形状，别混用。
 
 ```bash
 node tools/preview-registry.mjs                                   # ① 起 verdaccio（14873/14874）
 node tools/codemod/preview-registry-login.mjs 14874                # ② 写独立凭证文件，不碰 ~/.npmrc
 node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge \
   --userconfig="$TEMP/dsh-preview-npmrc"                            # ③ 全量发（--purge 防同版本陈旧内容）
-# ④ 临时把 @dsh-pack:registry=http://127.0.0.1:14874/ 加进 ~/.npmrc，然后：
-pnpm install --lockfile-only --ignore-scripts
-pnpm install --frozen-lockfile --ignore-scripts                     # ⑤ 用它绿 = lock 与全部 package.json 咬合
-# ⑥ 收尾：删掉 ~/.npmrc 那一行、停 verdaccio，再把包内 node_modules 清回去（见下面「副作用」）
+# ④ 临时把 @dsh-pack:registry=http://127.0.0.1:14874/ 加进 ~/.npmrc（只在这轮验证期间留着）
+pnpm install --lockfile-only --ignore-scripts                        # 产出 registry 形状的 lock（只用于对账，别提交）
+pnpm install --frozen-lockfile --ignore-scripts                      # ⑤ 用它绿 = 按 registry 语义装得动
+# ⑥ 收尾：git checkout -- pnpm-lock.yaml 退回链接形状、删掉 ~/.npmrc 那一行、停 verdaccio，
+#         再把包内 node_modules 清回去（命令见本节末）
 ```
 
-> 第 ④ 步以前还要在 `pnpm-workspace.yaml` 里临时写 `minimumReleaseAge: 0` 才跑得动；
-> 现在上面那条豁免已经覆盖 `@dsh-pack/*`，而本机被点名的只有这个 scope，所以不必再动配置
-> （CLI 也没有 `--minimum-release-age` 这个选项，写了只会 `Unknown option`）。
+> 走这条通道时以前还要临时写 `minimumReleaseAge: 0` 才跑得动；现在上面那条豁免覆盖
+> `@dsh-pack/*`，本机被点名的也只有这个 scope，不必再动配置
+> （CLI 没有 `--minimum-release-age` 选项，写了只会 `Unknown option`）。
 
-两条会当场拦住你的策略，都是真的，别绕过去骗自己：
+`--frozen-lockfile` 那条判据不能省：它才是「lock 与 32 个 package.json 咬合」的证明，
+逐字段比对只查得到 specifier，查不到缺条目与 integrity 漂移。
 
-- **年龄门禁**：见上一节。它拦的是「发布时间取不到 / 太新」，不是包体有问题。
-- **lock 里不会留下本机地址**：`@dsh-pack` 条目只记 `integrity`，tarball 地址由安装时的
-  registry 配置推导。所以本机发的那份 lock 与将来 npm 上的同一版本**字节等价**（同一 `npm pack`
-  产物 → 同一 sha512），不需要事后改 host。
-
-副作用要说清楚：第 ⑤ 步会把依赖真装进 `node_modules`，`nodeLinker: hoisted` 装不下的版本会落进
+副作用要说清楚：真装会把依赖写进 `node_modules`，`nodeLinker: hoisted` 装不下的版本会落进
 `packages/<包>/node_modules/` —— 里面**包含内核 `@deepseek-ai` 的拷贝**，正是 `kernel-shadow`
 门禁拦的形状，而 `packages/billion-context-dsh/node_modules/acp-kernel` 与
-`packages/dsh-pocket/node_modules` 是**入库目录**，会被就地改写。跑完必须清回去：
+`packages/dsh-pocket/node_modules` 是**入库目录**，会被就地改写（实测 127 个跟踪文件）。
+跑完必须清回去：
 
 ```bash
 git clean -fdX -- "packages/*/node_modules"                # 只删未入库（含 ignored）的新增

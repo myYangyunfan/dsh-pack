@@ -14,3 +14,8 @@ autoInstallPeers: false
 # 每次发版都是刚发布，落在 24h 窗口里必然被判违规（CI 实测 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION）。
 minimumReleaseAgeExclude:
   - '@dsh-pack/*'
+
+# 元包与成员之间的引用在本仓内闭环：成员就是同一 workspace 里的目录，链接它们而不是去
+# registry 取（@dsh-pack 尚未发布，取必 404）。成员对外部包与内核 peer 的解析仍走 registry，
+# 与用户 profile 的语义一致；这里只改「自家指自家」这一段。
+linkWorkspacePackages: true

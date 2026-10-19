@@ -1,10 +1,14 @@
 // 回归锁：工作流里每一条 `pnpm install` 都必须带 --filter '!@dsh-pack/all'。
 //
-// 为什么这条要锁死：元包那 24 个依赖就是本仓成员自己，而 @dsh-pack 还没发到 registry。
-// 只要哪条 install 漏掉这个 filter，pnpm 就会去 npmjs 取成员 tarball，当场
-// ERR_PNPM_FETCH_404，整个 job 在装依赖阶段红掉（2026-10-19 实测：CI 的
-// 「静态审计」与「单测」两个 job 就是这么红的）。这类红不报在业务判据上，
-// 看起来像「CI 又抽风」，所以把它钉成一条会自己变的测试，而不是靠人记五处接线。
+// 这条是**第二层保险**，主修是 pnpm-workspace.yaml 的 linkWorkspacePackages: true（它让 lock 里
+// 不再存在 @dsh-pack 的 registry 条目，见 .github/RELEASE_RUNBOOK.md「CI 的 install」一节）。
+// 为什么两层都要钉：@dsh-pack 还没发到 registry，任何「按 registry 取自家成员」的写法都会
+// ERR_PNPM_FETCH_404，而这类红落在装依赖阶段，看起来像「CI 又抽风」，不报在任何业务判据上。
+//
+// 顺带记下这条排查教训：本机第一次验「filter 够用」时 install 是 exit 0，那是假绿 ——
+// store 里还留着上一轮从 verdaccio 装进去的成员 tarball，pnpm 压根没发请求。同一命令在 CI
+// （空 store）里照样 404。所以判 lock 形状要看 `packages:` 里 @dsh-pack 的条目数（应为 0），
+// 不能只看本机 install 的退出码。
 //
 // 反证跟着判据走：把同一份文本里的 filter 抹掉，必须当场报出那一行。
 import test from 'node:test';

@@ -28,9 +28,11 @@ jobs:
       # --ignore-scripts：pnpm 11 默认拦依赖的 install 脚本，静态审计与单测都不需要
       # 原生构建（sharp / node-gyp-build 那类）。需要真装原生包的是 J3，它单独跑。
       # 不加这个会让 pnpm install 直接以 ERR_PNPM_IGNORED_BUILDS 失败。
-      # --filter '!@dsh-pack/all'：元包那 24 个依赖就是本仓成员自己，而 @dsh-pack 还没发到
-      # registry，装它必然 ERR_PNPM_FETCH_404。静态审计与单测只读源码 + 根 devDeps，
-      # 不需要这份 node_modules；真按 registry 语义验证是 J1/J2 的活（它们自带临时 home）。
+      # --filter '!@dsh-pack/all'：第二层保险。主修是 pnpm-workspace.yaml 的
+      # linkWorkspacePackages: true —— 它让元包那 24 个「自家指自家」的依赖链到 workspace 目录，
+      # lock 里不再有 @dsh-pack 的 registry 条目可取（@dsh-pack 尚未发布，取必 ERR_PNPM_FETCH_404）。
+      # 这条 filter 让 install 连元包那个 importer 都不必展开；静态审计与单测只读源码 + 根 devDeps，
+      # 真按 registry 语义验证是 J1/J2 的活（它们自带临时 home）。理由见 RELEASE_RUNBOOK。
       - run: pnpm install --frozen-lockfile=false --ignore-scripts --filter '!@dsh-pack/all'
       - name: 生成/刷新官方内核快照
         run: |
@@ -62,9 +64,11 @@ jobs:
       # --ignore-scripts：pnpm 11 默认拦依赖的 install 脚本，静态审计与单测都不需要
       # 原生构建（sharp / node-gyp-build 那类）。需要真装原生包的是 J3，它单独跑。
       # 不加这个会让 pnpm install 直接以 ERR_PNPM_IGNORED_BUILDS 失败。
-      # --filter '!@dsh-pack/all'：元包那 24 个依赖就是本仓成员自己，而 @dsh-pack 还没发到
-      # registry，装它必然 ERR_PNPM_FETCH_404。静态审计与单测只读源码 + 根 devDeps，
-      # 不需要这份 node_modules；真按 registry 语义验证是 J1/J2 的活（它们自带临时 home）。
+      # --filter '!@dsh-pack/all'：第二层保险。主修是 pnpm-workspace.yaml 的
+      # linkWorkspacePackages: true —— 它让元包那 24 个「自家指自家」的依赖链到 workspace 目录，
+      # lock 里不再有 @dsh-pack 的 registry 条目可取（@dsh-pack 尚未发布，取必 ERR_PNPM_FETCH_404）。
+      # 这条 filter 让 install 连元包那个 importer 都不必展开；静态审计与单测只读源码 + 根 devDeps，
+      # 真按 registry 语义验证是 J1/J2 的活（它们自带临时 home）。理由见 RELEASE_RUNBOOK。
       - run: pnpm install --frozen-lockfile=false --ignore-scripts --filter '!@dsh-pack/all'
       # 集成/单测都强制把 DSH_HOME 指到临时目录；这里显式清空，防止继承到真实路径
       - name: node --test
