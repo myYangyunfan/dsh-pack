@@ -1,12 +1,24 @@
 import type { Context } from './context-types.ts';
 import { Config, type ResolvedSidebarConfig, type SidebarConfig } from './config.ts';
+import { type SidebarFsEntry } from './fs-tree.ts';
 export { Config };
 export type { SidebarConfig, ResolvedSidebarConfig };
 export type { Context } from './context-types.ts';
 export type { BetterSidebarService, TabDescriptor, TabComponentProps, FileViewerDescriptor, FileViewerProps, FileFetchStrategy, } from './client/service.ts';
+export { archiveNameOf, collectZipEntries, contentDispositionOf, disambiguateArchiveNames } from './archive-route.ts';
 /** Plugin identity for cordis.yml rows. */
 export declare const name = "dsh-better-sidebar";
-/** Services required before mounting: the webserver routes, the session store, the web runtime's trusted hosts, and the tool registry. */
+/** Row bound of one `fs.trees` batch request (a mount/refresh sends what it shows). */
+export declare const FS_TREES_MAX_PATHS = 64;
+/** One level of an `fs.trees` batch: either a listing or that level's failure. */
+export interface SidebarFsLevel {
+    path: string;
+    entries: SidebarFsEntry[];
+    truncated: boolean;
+    /** Present only when THIS level failed (the batch itself still succeeded). */
+    error?: string;
+}
+/** Services required before mounting: the webserver routes, the session store, the connection service's trusted hosts, and the tool registry. */
 export declare const inject: string[];
 /** Content type served by /sidebar/file (binary-safe fallback for unknowns). */
 export declare function mediaTypeForPath(path: string): string;
@@ -38,8 +50,8 @@ export interface SidebarSettingsFace {
     }>;
 }
 /**
- * Plugin body: mount the fenced routes and the pty lifecycle.
- * @param ctx - host plugin context (webServer, sessions, webRuntime).
+ * Plugin body: mount the fenced routes and the sidebar_open push socket.
+ * @param ctx - host plugin context (webServer, sessions, connection).
  * @param config - deployment-provided limits; the Loader validates against
  * {@link Config} and fills defaults, direct callers get them from
  * {@link resolveSidebarConfig}.

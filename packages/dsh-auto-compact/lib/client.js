@@ -7,9 +7,17 @@
  *     pressureTokens / projectedTokens / contextWindow）
  *   · inputActions —— setDraft / submit，用于以用户身份提交 /compact
  * 占用率 = projectedTokens ÷ contextWindow（与官方 ContextMeter 环同口径）。
- * 达到阈值且满足静默条件（非首轮 hero、无进行中轮次的输入、距上次压缩
- * 冷却 3 分钟）时自动提交 /compact —— 命令要求 agent 空闲，压缩事务由
- * 内核 dsh-compaction-basic 执行，失败（busy 等）只是记录，绝不打扰。
+ * 达到阈值且**闸门放行**时自动提交 /compact。闸门（composerGate，纯函数）读的是
+ * 内核给 dock occupant 的真形状 `useInput(s => s)` / `useSession(s => s)`：
+ *   · 输入框里有内容（draft 非空，或有 attachmentIds）→ 不触发；
+ *   · 输入形态不是 plain（adjudicating / claimed / submitting）、或会话 running /
+ *     pendingSubmissions 非空 → 不触发；
+ *   · 两个快照读不到 → 判 unknown，同样不触发（setDraft 是**整篇替换**并立刻覆盖
+ *     已持久化的草稿，未知状态下替用户提交就是丢内容）。
+ * 不触发时不记冷却、不打扰，等下一次投影更新（草稿清空 / 轮次结束）自然重来。
+ * 这一条是 0.1.2 的根治：此前只有 enabled / 阈值 / 冷却三道判据，用户打了一半的
+ * 引导词会被 setDraft("/compact") 直接覆盖（2026-10-18 用户报障）。
+ * 压缩事务由内核 dsh-compaction-basic 执行，失败（busy 等）只是记录，绝不打扰。
  *
  * 设置页分区可调：开关（默认开）、阈值（60–95%，默认 80%）、手动「立即压缩」。
  * 配置持久化到 localStorage（settings namespace 之外的轻量本地方案，
@@ -74,6 +82,35 @@ window.__ModuleLoader__.load({
       } catch (e) { /* 提示失败无碍 */ }
     }
 
+    // 替用户提交前的闸门。判据照内核 InputBar 的同源口径
+    // （dsh-client-ui-conversation/lib/client.js:18803-18806：
+    //   empty = draft.trim() === "" && attachments.length === 0；
+    //   machineBusy = phase === "adjudicating" || "submitting"）——
+    // 附件也算内容：occupant 拿不到 resolveDraftAttachments/useFileUploads（那是 bar 专属注入），
+    // 所以按 attachmentIds 计数，这一侧比内核多出来的只有「刚挂上还没解析完的附件」这种边角。
+    // 返回 "unknown" 是刻意的保守：读不到形状就绝不替用户按发送。
+    function composerGate(input, session) {
+      if (!input || typeof input !== "object") return "unknown";
+      if (typeof input.draft !== "string" || !Array.isArray(input.attachmentIds)) return "unknown";
+      if (input.draft.trim() !== "" || input.attachmentIds.length > 0) return "has-content";
+      if (typeof input.phase !== "string") return "unknown";
+      if (input.phase !== "plain") return "busy";
+      if (!session || typeof session !== "object") return "unknown";
+      if (session.running) return "busy";
+      if (Array.isArray(session.pendingSubmissions) && session.pendingSubmissions.length > 0) return "busy";
+      return "ready";
+    }
+
+    var unknownWarned = false;
+    function warnUnknown() {
+      if (unknownWarned) return;
+      unknownWarned = true;
+      try {
+        console.warn("[auto-compact] 读不到输入框/会话快照（useInput / useSession 形状变了？）——"
+          + "已停手不替用户提交，避免覆盖草稿；请对照内核 dsh-client-ui-conversation 的 dock 注入面复核");
+      } catch (e) { /* 无 console 环境 */ }
+    }
+
     function fireCompact(sessionId) {
       var cap = sessions.get(sessionId);
       if (!cap || !cap.inputActions || typeof cap.inputActions.setDraft !== "function") return false;
@@ -94,7 +131,7 @@ window.__ModuleLoader__.load({
       }
     }
 
-    // 不可见的 dock occupant：持续镜像每个会话的 inputActions 与占用率。
+    // 不可见的 dock occupant：持续镜像每个会话的 inputActions、占用率与「能不能提交」闸门。
     function AutoCompactCapture(props) {
       var sessionId = props.sessionId;
       var inputActions = props.inputActions;
@@ -105,17 +142,30 @@ window.__ModuleLoader__.load({
         if (typeof useProjection === "function") pressure = useProjection("contextPressure");
       } catch (e) { pressure = null; }
 
+      // dock 的标准注入面：hooks.input = 输入框快照、hooks.session = 会话快照
+      // （dsh-client-ui-conversation/lib/client.js:19738-19753 的 provide 决议）。
+      var input = null;
+      var session = null;
+      try {
+        if (typeof props.useInput === "function") input = props.useInput(function (s) { return s; });
+      } catch (e) { input = null; }
+      try {
+        if (typeof props.useSession === "function") session = props.useSession(function (s) { return s; });
+      } catch (e) { session = null; }
+      var gate = composerGate(input, session);
+
       react.useEffect(function () {
         if (!sessionId) return;
         currentId = sessionId;
         var cap = sessions.get(sessionId);
-        if (!cap) { cap = { inputActions: null, lastFireAt: 0 }; sessions.set(sessionId, cap); }
+        if (!cap) { cap = { inputActions: null, lastFireAt: 0, gate: "unknown" }; sessions.set(sessionId, cap); }
         if (inputActions) cap.inputActions = inputActions;
+        cap.gate = gate;
         return function () {
           // 切走的会话保留捕获（回切无需重建），只撤销当前指针。
           if (currentId === sessionId) currentId = sessionId;
         };
-      }, [sessionId, inputActions]);
+      }, [sessionId, inputActions, gate]);
 
       // 判定与触发放在渲染数据就绪处（每次投影更新都会重渲染 occupant）。
       react.useEffect(function () {
@@ -128,10 +178,17 @@ window.__ModuleLoader__.load({
         if (!cap || !cap.inputActions) return;
         if (occ.percent < cfg.threshold) return;
         if (Date.now() - (cap.lastFireAt || 0) < COOLDOWN_MS) return;
+        // 闸门排在这条链的最后一条：草稿里有内容 / 正在跑轮次 / 形状读不到时，
+        // 一次 setDraft 就把用户半篇输入连已持久化的草稿一起换掉，且没有恢复通道
+        // （内核 commit-draft 会砍掉 undo 栈）。跳过时**不记冷却**，等输入框空了再补做。
+        if (gate !== "ready") {
+          if (gate === "unknown") warnUnknown();
+          return;
+        }
         if (fireCompact(sessionId)) {
           toast("上下文已达到 " + occ.percent + "%（阈值 " + cfg.threshold + "%），已自动压缩（/compact）");
         }
-      }, [sessionId, pressure && (pressure.projectedTokens ?? pressure.pressureTokens), pressure && pressure.contextWindow]);
+      }, [sessionId, gate, pressure && (pressure.projectedTokens ?? pressure.pressureTokens), pressure && pressure.contextWindow]);
 
       return null;
     }
@@ -147,7 +204,9 @@ window.__ModuleLoader__.load({
       now: "立即压缩当前对话",
       nowDone: "已发送 /compact",
       nowFail: "当前没有可压缩的会话（打开一个对话再试）",
-      note: "压缩由内核执行，仅在对话空闲时进行；失败会静默跳过并在冷却后重试。"
+      nowBlocked: "输入框里还有内容，或这一轮还在跑——先发送/清空并等它空闲，再手动压缩",
+      nowUnknown: "读不到输入框状态，已停手（不会覆盖你的草稿）",
+      note: "只在输入框为空且会话空闲时自动触发；草稿非空时一定跳过（绝不覆盖你正在写的东西），跳过不记冷却、输入框空了会补做。压缩事务由内核执行，失败静默。"
     };
     var en = {
       nav: "Auto Compact",
@@ -157,8 +216,10 @@ window.__ModuleLoader__.load({
       thresholdHint: "Fires when occupancy reaches this ratio (same gauge as the official ring). 70–85% recommended.",
       now: "Compact current conversation now",
       nowDone: "/compact sent",
-      nowFail: "No compactable session open (open a conversation first)",
-      note: "Compaction runs in the core and only while idle; failures back off silently and retry after cooldown."
+      nowFail: "No compactable conversation open (open a conversation first)",
+      nowBlocked: "The composer still has content, or this turn is running — send/clear it and wait for idle before compacting manually",
+      nowUnknown: "Composer state unavailable; stood down (your draft is not overwritten)",
+      note: "Fires only when the composer is empty and the conversation is idle; it never overwrites a draft, and a skipped attempt does not consume the cooldown — it retries once the composer is empty. Compaction runs in the core; failures stay silent."
     };
 
     var CSS = ".__ac_root{max-width:640px;display:flex;flex-direction:column;gap:12px}" +
@@ -225,12 +286,14 @@ window.__ModuleLoader__.load({
             onClick: function () {
               var sid = currentId;
               var cap = sid && sessions.get(sid);
-              if (cap && cap.inputActions) {
-                if (fireCompact(sid)) setMsg({ ok: true, text: t("nowDone") });
-                else setMsg({ ok: false, text: t("nowFail") });
-              } else {
-                setMsg({ ok: false, text: t("nowFail") });
-              }
+              if (!cap || !cap.inputActions) { setMsg({ ok: false, text: t("nowFail") }); return; }
+              // 手动那一路走同一道闸门：用户点「立即压缩」时如果输入框里有半篇草稿，
+              // 替他把草稿换成 /compact 同样是丢内容——不执行，把原因说出来。
+              var g = cap.gate || "unknown";
+              if (g === "has-content" || g === "busy") { setMsg({ ok: false, text: t("nowBlocked") }); return; }
+              if (g === "unknown") { warnUnknown(); setMsg({ ok: false, text: t("nowUnknown") }); return; }
+              if (fireCompact(sid)) setMsg({ ok: true, text: t("nowDone") });
+              else setMsg({ ok: false, text: t("nowFail") });
             }
           }, t("now")),
           msg ? h("span", { className: msg.ok ? "__ac_ok" : "__ac_err" }, msg.text) : null
@@ -268,7 +331,7 @@ window.__ModuleLoader__.load({
 
     exports.apply = apply;
     exports.inject = inject;
-    exports.__internals = { occupancyOf, loadConfig, sanitizeConfig: function (c) { return { enabled: c.enabled !== false, threshold: Math.min(95, Math.max(60, Math.round(Number(c.threshold) || 80))) }; } };
+    exports.__internals = { occupancyOf, composerGate, loadConfig, sanitizeConfig: function (c) { return { enabled: c.enabled !== false, threshold: Math.min(95, Math.max(60, Math.round(Number(c.threshold) || 80))) }; } };
     return module.exports;
   }
 });

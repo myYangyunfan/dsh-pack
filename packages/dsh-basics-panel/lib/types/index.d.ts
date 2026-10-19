@@ -1,7 +1,7 @@
 /**
  * dsh-basics-panel host half: a single fenced /basics JSON API that merges
  * every feature backend's methods. The route passes the same browser-trust
- * fence as the /api gateway (loopback or `webRuntime.trustedHosts`), and each
+ * fence as the /api gateway (loopback or `connection.trustedHosts`), and each
  * feature re-resolves its own authorities (the skill registry for skill
  * paths, the composition scan for MCP files) so the panel never trusts a
  * client-supplied path alone.
@@ -17,7 +17,7 @@ export declare const name = "dsh-basics-panel";
 export declare const inject: string[];
 /**
  * Plugin body: mount the fenced routes over the merged feature APIs.
- * @param ctx - host plugin context (webServer, webRuntime, sessions, skills, tools).
+ * @param ctx - host plugin context (webServer, connection, sessions, skills, tools).
  * @param config - deployment limits; the Loader validates against {@link Config}.
  */
 export declare function apply(ctx: Context, config?: Partial<ResolvedBasicsConfig>): void;

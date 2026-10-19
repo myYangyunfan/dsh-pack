@@ -27,8 +27,8 @@
  * - each artifact registers itself via window.__ModuleLoader__.load({id,
  *   factory}) with the (require) => exports CJS closure shape.
  *
- * Lazy chunks (lib/client-<name>.js): the heavy preview/terminal libraries
- * (CodeMirror, xterm) build as two standalone chunk bundles
+ * Lazy chunks (lib/client-<name>.js): the heavy preview libraries
+ * (CodeMirror, mermaid) build as standalone chunk bundles
  * (src/client/chunks/<name>.tsx), shared by both channels. Each script
  * assigns its factory to the plugin-owned global registry
  * (globalThis.__dshChunks__) and is fetched by
@@ -55,7 +55,7 @@ const NODE_BUILTINS = new Set([
   ...builtinModules.map(id => `node:${id}`),
 ])
 
-/** Module specifiers the web shell shares into the frozen module table (the official PLATFORM_MODULES list, plus the runtime/client exemption). */
+/** Module specifiers the web shell shares into the frozen module table (the official PLATFORM_MODULES list; `dsh-client-runtime` was removed upstream in DSH 0.1.2-alpha and no chunk requires it). */
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
@@ -64,20 +64,7 @@ const CLIENT_EXTERNALS = [
   'cordis',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-runtime/client',
 ]
-
-/**
- * This package's own name — the OFFICIAL-channel bundle registration id.
- *
- * 必须从 package.json 的 `name` 推导，不能写字面量：内核 boot graph 行以包名为键，
- * `register()` 以 `stripClientSuffix(registration.id)` 做键，两者不一致时那一行永远
- * 等不到注册，加载器会退回去再执行一次 fallback URL，于是同一个 bundle 执行两次 →
- * `duplicate factory registration` → `web boot: 1 entry did not activate` → 官方客户端
- * 拒绝启动并触发 profile 恢复（用户的模型配置就是这么被抹掉的，2026-09-30 实测）。
- * 用 `require` 而不是 import assertion，是为了让 tsdown 的配置加载器两侧都吃得下。
- */
-const PACKAGE_NAME: string = (require('./package.json') as { name: string }).name
 
 /**
  * react-icons' exports map lists `require` BEFORE `import`, so the shared
@@ -337,7 +324,7 @@ function makeCssPlugin(pluginId: string): BuildPlugin {
 }
 
 /** The lazy chunk names (keep in sync with src/bundle-route.ts CHUNK_NAMES). */
-const CHUNKS = ['terminal', 'editor', 'mermaid']
+const CHUNKS = ['editor', 'mermaid', 'locale']
 
 export default [
   {
@@ -353,11 +340,12 @@ export default [
     // emitted (and `watch` must never touch them).
     clean: false,
   },
-  // Official profile channel: bundle id = package name (package.json `name`,
-  // i.e. `@dsh-pack/dsh-better-sidebar`) — see PACKAGE_NAME for why this must
-  // never be a literal again.
-  clientBundle(PACKAGE_NAME, 'client.js'),
-  // Plugin-registry channel: bundle id = manifest id (dsh.plugin.json `id`).
+  // Official profile channel: bundle id = package name (package.json `name`).
+  clientBundle('dsh-better-sidebar', 'client.js'),
+  // Third-party registry channel: bundle id = the market manifest's id
+  // (dsh.plugin.json). DSH never reads that file — the official profile
+  // channel is the package-name bundle above, declared through
+  // package.json's `dsh.bundle.patch`.
   clientBundle('dsh-external/dsh-better-sidebar', 'client-registry.js'),
   // Lazy chunks: shared by both channels, fetched on first use through the
   // plugin's /sidebar/bundle route (see src/client/chunk-loader.ts).

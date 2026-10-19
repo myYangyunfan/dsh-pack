@@ -25,7 +25,7 @@ test('projects committed DSH events once, folds tool process into the assistant 
   const store = new WorkspaceStore(join(directory, 'state.json'))
   const parent = {
     id: 'session-parent', header: {}, firstLiveSeq: 0,
-    events: [
+    snapshotEvents: () => [
       { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '分析登录异常' }] } },
       { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '我来检查。' }] } } },
       { type: 'tool/call', seq: 2, time: 3, data: { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{"cmd":"pnpm test"}' } },
@@ -33,8 +33,8 @@ test('projects committed DSH events once, folds tool process into the assistant 
     ],
   }
   await store.projectSession(parent)
-  await store.projectEvent(parent, parent.events[2])
-  const child = { id: 'session-child', header: { parentSession: 'session-parent' }, firstLiveSeq: 4, events: [] }
+  await store.projectEvent(parent, parent.snapshotEvents()[2])
+  const child = { id: 'session-child', header: { parentSession: 'session-parent' }, firstLiveSeq: 4, snapshotEvents: () => [] }
   await store.projectSession(child, child.firstLiveSeq)
 
   const [workspace] = await store.list()
@@ -57,14 +57,14 @@ test('projects a batch of session events in a single write', async () => {
   const store = new WorkspaceStore(join(directory, 'state.json'))
   const session = {
     id: 'session-batch', header: { meta: { cwd: 'C:\\work\\batch' } }, firstLiveSeq: 0,
-    events: [
+    snapshotEvents: () => [
       { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '批量问题' }] } },
       { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '批量回答' }] } } },
       { type: 'tool/call', seq: 2, time: 3, data: { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{}' } },
       { type: 'tool/result', seq: 3, time: 4, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'ok' }] } } },
     ],
   }
-  await store.projectEvents(session, session.events)
+  await store.projectEvents(session, session.snapshotEvents())
   const [workspace] = await store.list()
   const graph = await store.get(workspace.id)
   const thread = graph.threads[0]

@@ -14,8 +14,14 @@
 // 为什么用轮询而不是 SSE：SSE 意味着每个标签页一条长连接，而官方客户端的
 // 更新准入锁在安装期间对 connection/request 一律 503——长连接会成片断掉并触发
 // 重连风暴；换来的收益在 60s 这个节奏上为零。故刻意选择无状态 HTTP 轮询。
+//
+// 设置面：本插件导出 Config（两条 volatile 布尔 + 一条 volatile 价目覆盖）。
+// 用户开关由本插件客户端半边注册进内核「设置 → 通用」的两行开关负责（客户端
+// 自己调 ctx.remote.settings.mutate）；原先壳层 ⋯ 菜单的 toggle-balance 已退役
+//（2026-10-16），这两行是 dock 显隐的唯一用户开关。
 // ===========================================================================
 
+import z from "@deepseek-ai/schemastery";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -43,6 +49,59 @@ const name = "dsh-balance";
 // 「某个官方包没挂载」直接判定本插件装配失败、整个余额 dock 消失，
 // 而它们每一个都有可用的兜底路径。
 const inject = ["webServer"];
+
+// ---------------------------------------------------------------------------
+// 设置条目声明（describe() 视图的来源）
+//
+// 声明 Config 之前，本插件的设置从来没生效过：内核 SettingsForms 的 describe()
+// 只收录「导出了 Config 且含 ≥1 个 volatile 字段」的 fiber 活条目，未声明的
+// 条目永不进名单 —— readSettings() 的 describe() 读法恒空，开关静默失效。
+//   · volatile 是硬条件：非 volatile 字段不进表单，页内也写不回来；
+//   · 必须用 @deepseek-ai/schemastery（DSH fork）：只有它解析时把 volatile
+//     字段包成 cosmokit Volatile 引用，loader 的 live-commit 路径才提交得动；
+//     public schemastery 产出普通值，用户每次改写报成功却不生效（见
+//     dsh-better-sidebar/src/config.ts 头部机制说明）；
+//   · default(true) 与「未配置视为开启」的现行语义一致（scheduler 只在
+//     显式 false 时短路）。
+//
+// ⚠ 还有一条同源的硬条件，2026-10-16 隔离内核实测才暴露：dsh-settings 的
+// projectForm(volatileForm(schema), plainConfig(fiber.config)) **只投影 volatile
+// 声明过的字段**，其余（含纯手写的 config 块键）一律从 row.value 里丢弃。
+// 实测形态：往 patch 的 `- id: balance` → `config: balancePrices.deepseek-chat`
+// 种 99/9.9/88，describe() 的 value 与刷新载荷的 prices 都仍是内置默认档
+// 2/0.04/8 —— 于是 README / balance-architecture 承诺的「价目覆盖写在 config
+// 块」这条用户面，从 rc.2 设置迁移起就是死的。故 balancePrices 必须一起声明为
+// volatile 才读得到。
+//
+// 内层三档不写 .optional()：这个 fork 的 schemastery 没有该方法（实测
+// `z.number(...).optional is not a function`，模块导入期即抛 → 整个条目被
+// loader-isolation 摘掉、dock 全灭），且对象字段**默认就是可选**（`.required()`
+// 才是标必须），实测 ~standard.validate 对只给 cacheMiss 的半份覆盖直接放行。
+// 缺项由 applyPriceOverrides 回落内置有效价，文档语义不变。
+// ---------------------------------------------------------------------------
+const Config = z.object({
+  showBalanceDock: z
+    .boolean()
+    .volatile()
+    .default(true)
+    .description("在对话统计栏显示余额与本轮费用（关闭则整个 dock 隐藏）"),
+  showOpenCodeGoUsage: z
+    .boolean()
+    .volatile()
+    .default(true)
+    .description("在余额 dock 内追加显示 OpenCode Go 订阅额度（5 小时 / 周 / 月）"),
+  balancePrices: z
+    .dict(
+      z.object({
+        cacheMiss: z.number(),
+        cacheHit: z.number(),
+        output: z.number(),
+      }),
+    )
+    .volatile()
+    .default({})
+    .description("按模型覆盖价目表（¥/百万 token，手写 config 块；缺项回落内置有效价）"),
+});
 
 const STATE_ROUTE = "/api/dsh-balance/state";
 const REFRESH_ROUTE = "/api/dsh-balance/refresh";
@@ -152,6 +211,10 @@ function settingsSection(settings, ns) {
  * 宿主设置读取。自制壳的 settings.json（showBalanceDock / showOpenCodeGoUsage /
  * balancePrices）在插件包形态下迁到本条目的 `config:` 块；该块未必被配置
  * （未配置时按默认走），故只认「读得到就用、读不到按默认」，绝不因设置缺失而隐藏 dock。
+ *
+ * 读的是 describe() 投影后的 row.value，因此**只有 Config 里声明为 volatile 的
+ * 字段才可能出现在这里**（见上方 projectForm 说明）。旧代码还试过 `section.prices`
+ * 这个别名键——它从未在 schema 里声明过，rc.2 起恒为 undefined，已删。
  */
 function readSettings(ctx) {
   let settings;
@@ -166,7 +229,7 @@ function readSettings(ctx) {
     if (!section || typeof section !== "object") continue;
     if (typeof section.showBalanceDock === "boolean") out.showBalanceDock = section.showBalanceDock;
     if (typeof section.showOpenCodeGoUsage === "boolean") out.showOpenCodeGoUsage = section.showOpenCodeGoUsage;
-    const prices = section.balancePrices || section.prices;
+    const prices = section.balancePrices;
     if (prices && typeof prices === "object") out.balancePrices = prices;
     if (Object.keys(out).length > 0) return out;
   }
@@ -283,7 +346,7 @@ function apply(ctx) {
   }, "dsh-balance: refresh scheduler");
 }
 
-export { apply, inject, name };
+export { Config, apply, inject, name };
 
 // 官方模块加载器下的宿主半边没有 require 面，单测经此命中内部纯函数
 // （口径对齐 dsh-balance/lib/client.js 与 dsh-client-file-changes 的同名惯例）。

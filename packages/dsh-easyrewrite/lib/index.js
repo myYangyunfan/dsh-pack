@@ -16,10 +16,6 @@ import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
-function settingsNamespace(value) {
-  if (!NAMESPACE_PATTERN.test(value)) throw new TypeError(`settings namespace "${value}" must match ${String(NAMESPACE_PATTERN)}`);
-  return value;
-}
 
 // ---------- 统一日志（host 落盘 $DSH_HOME/dsh-easyrewrite.log） ----------
 let logFile = null;
@@ -93,7 +89,7 @@ function writeLog(level, tag, message, data) {
 }
 
 export const name = 'dsh-easyrewrite'
-export const inject = ['webServer', 'sessions', 'settings']
+export const inject = ['webServer', 'sessions', 'settings', 'agents']
 
 /** 读取 JSON 请求体（带大小上限保护）。 */
 function readJsonBody(req, limit = 1024 * 1024) {
@@ -234,8 +230,7 @@ function resolveBoundary(ctx, sessionId, targetSeq) {
   const session = ctx.sessions.get(sessionId);
   if (!session) return { code: 'session-not-found', status: 404 };
   // v2.4.0: dsh 0.1.2 起 Session.events 移除，改用 snapshotEvents(fromSeq, toSeqExclusive)；
-  // rc.2 旧宿主仍走 session.events（写成下标读取，旧 API 字面量有审计门禁 session-api.js）。
-  // 事件对象两代同构（seq/type 字段）。
+  // rc.2 旧宿主仍走 session.events。事件对象两代同构（seq/type 字段）。
   let events;
   if (typeof session.snapshotEvents === "function") {
     try { events = session.snapshotEvents(); } catch (e) { return { code: 'internal', status: 500, message: String(e?.message ?? e) }; }
@@ -263,16 +258,59 @@ function resolveBoundary(ctx, sessionId, targetSeq) {
   return { boundary };
 }
 
+/**
+ * 物理拔除 fork 继承的幽灵队列项（Host 端直接操作 Agent.inbox）。
+ * DSH sessions.fork 会贪婪切入 boundary 到下一个 turn/start 之间的所有非回合事件，
+ * 导致旧消息的 agent/inbox/spliced 入队事件被子会话继承，而配对出队事件被截断，
+ * 在 Host 端 Agent.inbox.nextTurn 留下悬空旧消息。
+ * 此函数直接调用官方 agent.inbox.remove / clear 将其彻底移除并落盘 canceled 状态。
+ */
+function cleanGhostInbox(ctx, sessionId) {
+  let cleared = 0;
+  const removedIds = [];
+  try {
+    const agentsSvc = ctx?.agents || (typeof ctx?.get === 'function' ? ctx.get('agents') : null);
+    const agent = agentsSvc?.get ? agentsSvc.get(sessionId) : null;
+    if (agent && agent.inbox) {
+      const nextTurnItems = Array.isArray(agent.inbox.nextTurn) ? [...agent.inbox.nextTurn] : [];
+      const nextStepItems = Array.isArray(agent.inbox.nextStep) ? [...agent.inbox.nextStep] : [];
+      const allPending = [...nextTurnItems, ...nextStepItems];
+
+      for (const item of allPending) {
+        if (item && item.id) {
+          try {
+            const ok = typeof agent.inbox.remove === 'function' ? agent.inbox.remove(item.id) : false;
+            if (ok) {
+              cleared++;
+              removedIds.push(item.id);
+            }
+          } catch (eRem) {
+            writeLog('warn', 'clean-ghost', '移除单个幽灵消息失败', { id: item.id, err: String(eRem?.message ?? eRem) });
+          }
+        }
+      }
+
+      // 若仍有未清除的 pending，执行 clear() 终极清空
+      if (agent.inbox.hasPending && typeof agent.inbox.clear === 'function') {
+        try {
+          agent.inbox.clear();
+          cleared++;
+        } catch (eClr) {
+          writeLog('warn', 'clean-ghost', 'inbox.clear 异常', { err: String(eClr?.message ?? eClr) });
+        }
+      }
+    }
+  } catch (eAll) {
+    writeLog('warn', 'clean-ghost', 'cleanGhostInbox 执行异常', { sessionId, err: String(eAll?.message ?? eAll) });
+  }
+  return { cleared, removedIds };
+}
+
 /** 仅测试用：暴露内部纯函数（不参与运行时行为）。 */
-export const __test = { findTurnEndBefore, resolveBoundary, writeLog, flushLogBuffer, getLogBuffer: () => logBuffer };
+export const __test = { findTurnEndBefore, resolveBoundary, cleanGhostInbox, writeLog, flushLogBuffer, getLogBuffer: () => logBuffer };
 
 export function apply(ctx) {
   writeLog('info', 'host', 'apply: 路由注册开始');
-  // 这里原先用 `typeof ctx.settings.register === 'function'` 守卫着调一个内核根本
-  // 不存在的 API（SettingsForms 没有 register），所以那个 if 恒假、整段是死代码：
-  // 既没注册上任何东西，也不报错——正是最难查的静默失效。
-  // 本插件没有任何需要持久化的设置项（dummySchema 只是为了让设置页出现一张空卡片），
-  // 要真出现设置项，按声明式导出带 .volatile() 字段的 Config 即可。
   const disposers = [];
   // client 日志上报路由（统一甄别，落盘 $DSH_HOME/dsh-easyrewrite.log）
   disposers.push(ctx.webServer.register({
@@ -419,6 +457,27 @@ export function apply(ctx) {
         sendJson(res, 200, { ok: true, boundary: result.boundary });
       } catch (err) {
         writeLog('error', 'recall', '/bubble/recall 异常', { message: String(err?.message ?? err) });
+        sendJson(res, 500, { ok: false, error: 'internal' });
+      }
+    }
+  }));
+  // 幽灵队列清理路由：清除由 fork 继承的悬空旧消息（Issue #10 彻底根治）
+  disposers.push(ctx.webServer.register({
+    kind: 'exact',
+    path: '/bubble/clean-ghost',
+    handler: async (req, res) => {
+      try {
+        if (req.method !== 'POST') { sendJson(res, 405, { ok: false, error: 'method-not-allowed' }); return; }
+        const body = await readJsonBody(req);
+        const { sessionId } = body;
+        if (!guard(req, res, true, sessionId)) return;
+
+        writeLog('info', 'clean-ghost', '收到幽灵队列清理请求', { sessionId });
+        const result = cleanGhostInbox(ctx, sessionId);
+        writeLog('info', 'clean-ghost', 'Host 端幽灵队列清理完成', { sessionId, cleared: result.cleared, removedIds: result.removedIds });
+        sendJson(res, 200, { ok: true, cleared: result.cleared, removedIds: result.removedIds });
+      } catch (err) {
+        writeLog('error', 'clean-ghost', '/bubble/clean-ghost 异常', { message: String(err?.message ?? err) });
         sendJson(res, 500, { ok: false, error: 'internal' });
       }
     }

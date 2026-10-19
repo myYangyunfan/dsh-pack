@@ -1,0 +1,809 @@
+/**
+ * Client controller 纯逻辑测试:SSE 帧解析、合帧节流、状态流转、撤回、会话模型查询跳过。
+ * 不依赖 DOM(controller 只用 fetch/AbortController/TextDecoder,Node ≥18 即可跑)。
+ *
+ * 运行:先 `npm run build`,再 `node test/controller.test.mjs`。
+ */
+import assert from 'node:assert/strict'
+import { createOptimizerController, extractContextTurns, shouldAutoClose, splitCommandPrefix } from '../lib/controller.js'
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const enc = new TextEncoder()
+
+/**
+ * 构造最小可用的 ClientContext mock。
+ * - modelDirectories:官方会话模型目录服务(controller 读取 current 作为会话模型),
+ *   `noModelDirectories: true` 时整体缺席,验证回退路径。
+ * - connection.api.sessions.history:旧版查询面(上游从未提供,插件按可选面调用),
+ *   调用次数可通过 returned.stats 观察。
+ */
+function makeCtx({ historyImpl, noModelDirectories } = {}) {
+  const stats = { modelDirCalls: 0, historyCalls: 0 }
+  const ctx = {}
+  if (!noModelDirectories) {
+    ctx.modelDirectories = {
+      directoryFor: () => ({
+        load: async () => {
+          stats.modelDirCalls += 1
+          return {
+            current: { provider: 'sess-p', model: 'sess-m' },
+            groups: [],
+            status: 'ready',
+            error: null,
+          }
+        },
+      }),
+    }
+  }
+  ctx.connection = {
+    api: {
+      sessions: {
+        history: async () => {
+          stats.historyCalls += 1
+          if (historyImpl) return historyImpl()
+          return {
+            ok: true,
+            value: {
+              hasMore: false,
+              events: [
+                { event: { type: 'user/message', seq: 0, time: 1, data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '帮我写个周报' }] } } },
+                { event: { type: 'assistant/message', seq: 1, time: 2, data: { message: { role: 'assistant', content: [{ type: 'text', text: '好的,本周做了哪些事?' }] } } } },
+                // 插件注入的 user 角色消息应被排除
+                { event: { type: 'user/message', seq: 2, time: 3, data: { role: 'user', source: { kind: 'plugin', plugin: 'x' }, content: [{ type: 'text', text: '注入内容' }] } } },
+                // 空壳 assistant 消息(仅承载 usage)应被跳过
+                { event: { type: 'assistant/message', seq: 3, time: 4, data: { message: { role: 'assistant', content: [] } } } },
+                // 工具事件与上下文无关
+                { event: { type: 'tool/result', seq: 4, time: 5, data: { message: { role: 'user', content: [{ type: 'text', text: '工具结果' }] } } } },
+              ],
+            },
+          }
+        },
+      },
+    },
+  }
+  return { ctx, stats }
+}
+
+/** 把事件对象列表编码成 SSE Response。 */
+function sseResponse(events) {
+  const stream = new ReadableStream({
+    start(c) {
+      for (const e of events) c.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`))
+      c.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+}
+
+/** 替换全局 fetch 跑一个用例;impl 收到 (body, signal)。 */
+async function withFetch(impl, fn) {
+  const calls = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body)
+    calls.push({ body, signal: init.signal })
+    return impl(body, init.signal)
+  }
+  try {
+    await fn(calls)
+  } finally {
+    globalThis.fetch = original
+  }
+}
+
+const DONE = {
+  type: 'done',
+  analysis: '分析内容',
+  optimized: '优化后的提示词',
+  wellFormed: true,
+  truncated: false,
+  provider: 'p',
+  model: 'm',
+  fallbackUsed: false,
+}
+
+// c1. 完整流式:delta → done,状态与结果字段正确
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([{ type: 'delta', text: '<<<ANALYSIS>>>\n分析内容\n' }, DONE]),
+    async () => {
+      await c.optimize('  草稿  ', 's1')
+      const s = c.getSnapshot()
+      assert.equal(s.status, 'done')
+      assert.equal(s.result.optimized, '优化后的提示词')
+      assert.equal(s.result.provider, 'p')
+      assert.equal(typeof s.result.durationMs, 'number', 'done 应记录客户端实测耗时')
+      assert.equal(s.live, null, 'done 后 live 应清空')
+      assert.equal(s.last.text, '草稿', 'last 应存 trim 后的草稿')
+      assert.equal(s.last.sessionId, 's1')
+    },
+  )
+  console.log('✓ c1 完整流式 → done')
+}
+
+// c2. 合帧节流:delta 后 live 不立即更新,约 50ms 后合帧落一次
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  let sc
+  const stream = new ReadableStream({ start(ctrl) { sc = ctrl } })
+  await withFetch(
+    () => new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await sleep(0) // 让 optimize 推进到 fetch
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '<<<OPTIMIZED>>>\n第一段' })}\n\n`))
+      assert.equal(c.getSnapshot().live?.optimized ?? '', '', 'delta 后不应同步落帧')
+      await sleep(80)
+      assert.equal(c.getSnapshot().live.optimized, '第一段', '合帧后 live 应可见')
+      sc.enqueue(enc.encode(`data: ${JSON.stringify(DONE)}\n\n`))
+      sc.close()
+      await pending
+      assert.equal(c.getSnapshot().status, 'done')
+      assert.equal(c.getSnapshot().live, null)
+    },
+  )
+  console.log('✓ c2 合帧节流')
+}
+
+// c3. SSE error 事件 → status error
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([{ type: 'error', error: '模型调用失败(AUTH): bad key' }]),
+    async () => {
+      await c.optimize('草稿', 's1')
+      assert.equal(c.getSnapshot().status, 'error')
+      assert.match(c.getSnapshot().error, /bad key/)
+    },
+  )
+  console.log('✓ c3 error 事件')
+}
+
+// c4. 预校验失败(非 SSE,JSON 409)→ status error
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => new Response(JSON.stringify({ ok: false, error: '未找到可用模型' }), {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+    }),
+    async () => {
+      await c.optimize('草稿', 's1')
+      assert.equal(c.getSnapshot().status, 'error')
+      assert.match(c.getSnapshot().error, /未找到可用模型/)
+    },
+  )
+  console.log('✓ c4 预校验 JSON 错误')
+}
+
+// c5. 流结束但无终态事件 → 连接中断
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([{ type: 'delta', text: '半截' }]),
+    async () => {
+      await c.optimize('草稿', 's1')
+      assert.equal(c.getSnapshot().status, 'error')
+      assert.match(c.getSnapshot().error, /连接中断/)
+    },
+  )
+  console.log('✓ c5 连接中断检测')
+}
+
+// c6. 设置固定模型时跳过会话模型查询 RPC
+{
+  const { ctx, stats } = makeCtx()
+  const c = createOptimizerController(ctx, { isModelPinned: () => true, getSessionModelDirectories: () => ctx.modelDirectories })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(stats.modelDirCalls, 0, '固定模型时不应查询会话模型目录')
+      assert.equal(calls[0].body.provider, undefined, 'body 不带会话模型,交给 Host 固定值')
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c6 固定模型跳过 RPC')
+}
+
+// c6b. 跟随会话:目录服务的 current 随请求发出(provider/model)
+{
+  const { ctx, stats } = makeCtx()
+  const c = createOptimizerController(ctx, { getSessionModelDirectories: () => ctx.modelDirectories })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(stats.modelDirCalls, 1, '默认应查询一次会话模型目录')
+      assert.equal(calls[0].body.provider, 'sess-p', 'body 带会话当前 provider')
+      assert.equal(calls[0].body.model, 'sess-m', 'body 带会话当前 model')
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c6b 跟随会话模型随请求发出')
+}
+
+// c6c. 会话模型目录服务缺席(旧版宿主):回退到 Host 解析,请求不带会话模型
+{
+  const { ctx } = makeCtx({ noModelDirectories: true })
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(calls[0].body.provider, undefined, '服务缺席时 body 不带会话模型')
+      assert.equal(calls[0].body.model, undefined, '服务缺席时 body 不带会话模型 id')
+      assert.equal(c.getSnapshot().status, 'done', '缺席只降级,不阻塞主流程')
+    },
+  )
+  console.log('✓ c6c 模型目录服务缺席回退')
+}
+
+// c7. 撤回状态流转:markApplied → clearApplied → close 复位
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async () => {
+      await c.optimize('草稿', 's1')
+      c.markApplied({ backup: '原文', text: '优化后的提示词' })
+      assert.deepEqual(c.getSnapshot().applied, { backup: '原文', text: '优化后的提示词' })
+      c.clearApplied()
+      assert.equal(c.getSnapshot().applied, null)
+      c.markApplied({ backup: '原文', text: '优化后的提示词' })
+      c.close()
+      assert.equal(c.getSnapshot().applied, null, 'close 应复位 applied')
+      assert.equal(c.getSnapshot().open, false)
+      assert.equal(c.getSnapshot().status, 'idle')
+    },
+  )
+  console.log('✓ c7 撤回状态流转')
+}
+
+// c8. retry 复用 last(同一份草稿重新发起)
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('我的草稿', 's1')
+      c.retry()
+      await sleep(10)
+      assert.equal(calls.length, 2)
+      assert.equal(calls[1].body.text, '我的草稿')
+    },
+  )
+  console.log('✓ c8 retry 复用 last')
+}
+
+// c9. 进行中的请求被 close 中止:状态复位,不残留 loading
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    (_body, signal) =>
+      new Response(
+        new ReadableStream({
+          start(ctrl) {
+            signal.addEventListener('abort', () => ctrl.close())
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await sleep(0)
+      assert.equal(c.getSnapshot().status, 'loading')
+      c.close()
+      await pending
+      assert.equal(c.getSnapshot().status, 'idle', 'close 后不得残留 loading')
+      assert.equal(c.getSnapshot().open, false)
+    },
+  )
+  console.log('✓ c9 close 中止进行中请求')
+}
+
+// c10. 会话历史 → 上下文随请求发出:真实用户输入 + 助手回复;插件注入/空壳/工具事件被过滤
+{
+  const { ctx, stats } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(stats.historyCalls, 1, '默认应拉取一次会话历史')
+      assert.deepEqual(calls[0].body.context, [
+        { role: 'user', text: '帮我写个周报' },
+        { role: 'assistant', text: '好的,本周做了哪些事?' },
+      ])
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c10 上下文随请求发出')
+}
+
+// c11. 会话历史查询失败:静默降级为无上下文,主流程不受影响
+{
+  const { ctx } = makeCtx({
+    historyImpl: async () => {
+      throw new Error('rpc boom')
+    },
+  })
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(calls[0].body.context, undefined, '历史失败时应无上下文')
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c11 历史查询失败降级')
+}
+
+// c12. 设置关闭「携带上下文」:跳过历史查询,请求不带 context
+{
+  const { ctx, stats } = makeCtx()
+  const c = createOptimizerController(ctx, { isContextEnabled: () => false })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(stats.historyCalls, 0, '关闭时不应查询会话历史')
+      assert.equal(calls[0].body.context, undefined)
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c12 关闭上下文跳过查询')
+}
+
+// c13. 斜杠命令前缀拆分:只优化正文,前缀记入 last;路径与普通文本不拆;
+//      O11:只有命令没有正文时直接落提示态、不发请求
+{
+  assert.deepEqual(splitCommandPrefix('/goal 帮我写个目标'), { prefix: '/goal', body: '帮我写个目标' })
+  assert.deepEqual(splitCommandPrefix('/goal'), { body: '/goal', commandOnly: true }, '只敲命令没有正文时标记 commandOnly')
+  assert.deepEqual(splitCommandPrefix('/path/to/file 帮我看看'), { body: '/path/to/file 帮我看看' }, '路径不是命令')
+  assert.deepEqual(splitCommandPrefix('  普通草稿  '), { body: '普通草稿' })
+
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+
+  // O11:commandOnly → 提示态且零网络请求
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('/goal', 's1')
+      assert.equal(c.getSnapshot().status, 'error')
+      assert.match(c.getSnapshot().error, /正文/)
+      assert.equal(calls.length, 0, '只有命令没有正文不应发出网络请求')
+    },
+  )
+
+  // 正常路径:只发正文,last 记住前缀供替换时拼回
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('/goal 帮我写个请假条', 's1')
+      assert.equal(calls[0].body.text, '帮我写个请假条', '发给 Host 的应只有正文')
+      assert.equal(c.getSnapshot().last.prefix, '/goal', 'last 应记住前缀供替换时拼回')
+    },
+  )
+  console.log('✓ c13 斜杠命令前缀')
+}
+
+// c14. 轻量记忆链:同会话改稿再优化带上轮结果;同文 retry / 首轮不带
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('原始草稿', 's1')
+      assert.equal(calls[0].body.previous, undefined, '首轮不带 previous')
+      // 同文 retry:重新生成,不是迭代
+      c.retry()
+      await sleep(10)
+      assert.equal(calls[1].body.previous, undefined, '同文 retry 不带 previous')
+      // 用户在优化产物上修改后再优化:带上一轮结果
+      await c.optimize('优化后的提示词,再补上对空输入的处理', 's1')
+      assert.equal(calls[2].body.previous, '优化后的提示词', '改稿再优化应带上轮结果')
+      // 换会话:不带
+      await c.optimize('另一会话的草稿', 's2')
+      assert.equal(calls[3].body.previous, undefined, '跨会话不带 previous')
+    },
+  )
+  console.log('✓ c14 轻量记忆链')
+}
+
+// c15. 记忆链门槛:上轮格式退化(wellFormed=false)或关闭「携带上下文」时不带 previous
+{
+  const DEGRADED = { ...DONE, wellFormed: false }
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DEGRADED]),
+    async (calls) => {
+      await c.optimize('原始草稿', 's1')
+      await c.optimize('改过的草稿', 's1')
+      assert.equal(calls[1].body.previous, undefined, '格式退化的上轮结果不得进入记忆链')
+    },
+  )
+  const off = createOptimizerController(makeCtx().ctx, { isContextEnabled: () => false })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await off.optimize('原始草稿', 's1')
+      await off.optimize('改过的草稿', 's1')
+      assert.equal(calls[1].body.previous, undefined, '关闭携带上下文后不带 previous')
+    },
+  )
+  console.log('✓ c15 记忆链门槛')
+}
+
+// c16. 发送即关闭判定(纯函数):草稿清空 / running 翻转 / 入队;loading 与未打开不关
+{
+  const base = { open: true, status: 'done', draft: '还有内容', prevRunning: false, running: false, prevQueued: 0, queued: 0 }
+  assert.equal(shouldAutoClose(base), false, '无信号时不关')
+  assert.equal(shouldAutoClose({ ...base, draft: '' }), true, '草稿清空应关')
+  assert.equal(shouldAutoClose({ ...base, draft: '   ' }), true, '草稿只剩空白应关')
+  assert.equal(shouldAutoClose({ ...base, running: true }), true, 'running 翻转应关')
+  assert.equal(shouldAutoClose({ ...base, prevRunning: true, running: true }), false, 'running 持续为真不算翻转')
+  assert.equal(shouldAutoClose({ ...base, queued: 1 }), true, '入队应关')
+  assert.equal(shouldAutoClose({ ...base, queued: 1, prevQueued: 1 }), false, '队列长度没变不关')
+  assert.equal(shouldAutoClose({ ...base, status: 'loading', draft: '' }), false, '优化中不关')
+  assert.equal(shouldAutoClose({ ...base, open: false, draft: '' }), false, '未打开不关')
+  console.log('✓ c16 发送即关闭判定')
+}
+
+// c17. 上下文取样:agentic 会话(assistant 碎片远多于用户消息)中用户消息保底 4 条
+{
+  const ev = (type, i, role, text, kind = 'user') => ({
+    event: {
+      type,
+      seq: i,
+      time: i,
+      data: type === 'user/message' ? { role, source: { kind }, content: [{ type: 'text', text }] } : { message: { role, content: [{ type: 'text', text }] } },
+    },
+  })
+  // 12 条:u1 a1 a2 a3 u2 a4 a5 u3 a6 a7 u4 a8(纯按时间取最近 8 条会丢掉 u1 u2)
+  const events = [
+    ev('user/message', 0, 'user', '第一个需求'),
+    ev('assistant/message', 1, 'assistant', '步骤一'),
+    ev('assistant/message', 2, 'assistant', '步骤二'),
+    ev('assistant/message', 3, 'assistant', '步骤三'),
+    ev('user/message', 4, 'user', '第二个需求'),
+    ev('assistant/message', 5, 'assistant', '步骤四'),
+    ev('assistant/message', 6, 'assistant', '步骤五'),
+    ev('user/message', 7, 'user', '第三个需求'),
+    ev('assistant/message', 8, 'assistant', '步骤六'),
+    ev('assistant/message', 9, 'assistant', '步骤七'),
+    ev('user/message', 10, 'user', '第四个需求'),
+    ev('assistant/message', 11, 'assistant', '步骤八'),
+  ]
+  const turns = extractContextTurns(events)
+  const userTexts = turns.filter((t) => t.role === 'user').map((t) => t.text)
+  assert.deepEqual(userTexts, ['第一个需求', '第二个需求', '第三个需求', '第四个需求'], '全部 4 条用户消息必须保底')
+  assert.ok(turns.length <= 8, '总量不超 8 条')
+  assert.ok(turns[0].text === '第一个需求' && turns.at(-1).text === '步骤八', '保持原始时间顺序')
+  console.log('✓ c17 上下文取样用户消息保底')
+}
+
+// c18. O2 取消:loading 中 cancel() 中止请求但保留已生成部分,面板定格
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  let sc
+  await withFetch(
+    (_body, signal) =>
+      new Response(
+        new ReadableStream({
+          start(ctrl) {
+            sc = ctrl
+            signal.addEventListener('abort', () => ctrl.close())
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await sleep(0)
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '<<<OPTIMIZED>>>\n第一段' })}\n\n`))
+      await sleep(80) // 等合帧落一次
+      c.cancel()
+      await pending
+      const s = c.getSnapshot()
+      assert.equal(s.status, 'cancelled', '取消后应进入 cancelled 态(而非 idle/error)')
+      assert.equal(s.open, true, '面板保持打开,展示已生成部分')
+      assert.equal(s.live?.optimized, '第一段', '已生成的流式内容应保留')
+      // 取消后可关闭复位
+      c.close()
+      assert.equal(c.getSnapshot().status, 'idle')
+      assert.equal(c.getSnapshot().live, null)
+    },
+  )
+  console.log('✓ c18 cancel 保留已生成部分')
+}
+
+// c19. done/error 后再按 Esc 是 close;cancel 仅在 loading 生效
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async () => {
+      await c.optimize('草稿', 's1')
+      assert.equal(c.getSnapshot().status, 'done')
+      c.cancel() // 非 loading 态,cancel 应为 no-op
+      assert.equal(c.getSnapshot().status, 'done', '非 loading 时 cancel 不改变状态')
+    },
+  )
+  console.log('✓ c19 cancel 仅在 loading 生效')
+}
+
+// c20. R21 客户端看门狗:Host 挂死(流永不结束也不响应事件)时超时落 error
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx, { getWatchdogMs: () => 1_200 })
+  await withFetch(
+    (_body, signal) =>
+      new Response(
+        new ReadableStream({
+          start(ctrl) {
+            signal.addEventListener('abort', () => ctrl.close())
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await pending
+      const s = c.getSnapshot()
+      assert.equal(s.status, 'error', '看门狗应把挂死请求落为 error')
+      assert.match(s.error, /请求超时/)
+      assert.equal(s.live, null)
+    },
+  )
+  console.log('✓ c20 客户端超时看门狗')
+}
+
+// c21. 快速模式无标记模型:原始流实时预览;缓冲出现「<<<」时不兜底(防半个标记闪现)
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx, { isFastMode: () => true })
+  let sc
+  const stream = new ReadableStream({ start(ctrl) { sc = ctrl } })
+  await withFetch(
+    () => new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await sleep(0)
+      // 无标记 delta:应直接作为优化稿实时预览
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '第一段优化内容' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized, '第一段优化内容', '无标记流应实时预览')
+      // 出现半个标记:兜底让位,不把「<<<OPT」闪进预览
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: ',<<<OPT' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized ?? '', '', '标记形成中不得兜底预览')
+      // 标记完成:恢复正常解析
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: 'IMIZED>>>\n正式内容' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized, '正式内容', '标记完成后回到正常解析')
+      sc.enqueue(enc.encode(`data: ${JSON.stringify(DONE)}\n\n`))
+      sc.close()
+      await pending
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c21 快速模式无标记实时预览')
+}
+
+// c22. 新输出顺序(优化稿在前、分析在后)的流式预览:ANALYSIS 确认触发二次
+//      压缩后,优化稿由冻结字段兜底继续显示,分析段实时增长
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  let sc
+  const stream = new ReadableStream({ start(ctrl) { sc = ctrl } })
+  await withFetch(
+    () => new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    async () => {
+      const pending = c.optimize('草稿', 's1')
+      await sleep(0)
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '<<<OPTIMIZED>>>\n优化稿全文' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized, '优化稿全文', '优化稿先流式可见')
+      // ANALYSIS 确认:缓冲压缩为分析段尾部,优化稿转由冻结字段持有
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '\n<<<ANALYSIS>>>\n分析' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized, '优化稿全文', '压缩后优化稿不得消失')
+      assert.equal(c.getSnapshot().live?.analysis, '分析')
+      // 分析继续增长,优化稿仍稳定
+      sc.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '到一半' })}\n\n`))
+      await sleep(80)
+      assert.equal(c.getSnapshot().live?.optimized, '优化稿全文')
+      assert.equal(c.getSnapshot().live?.analysis, '分析到一半')
+      sc.enqueue(enc.encode(`data: ${JSON.stringify(DONE)}\n\n`))
+      sc.close()
+      await pending
+      assert.equal(c.getSnapshot().status, 'done')
+    },
+  )
+  console.log('✓ c22 新顺序流式预览与压缩兜底')
+}
+
+// c23. 回归:单个损坏的 SSE 帧被跳过,不毁掉整次优化(已收到的内容照常完成)
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () =>
+      new Response(
+        new ReadableStream({
+          start(ctrl) {
+            ctrl.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'delta', text: '<<<OPTIMIZED>>>\n部分内容' })}\n\n`))
+            ctrl.enqueue(enc.encode('data: {oops-not-json\n\n')) // 截断/损坏帧
+            ctrl.enqueue(enc.encode('data: not json at all\n\n'))
+            ctrl.enqueue(enc.encode(`data: ${JSON.stringify(DONE)}\n\n`))
+            ctrl.close()
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    async () => {
+      await c.optimize('草稿', 's1')
+      const s = c.getSnapshot()
+      assert.equal(s.status, 'done', '坏帧应被跳过,而非把整次优化落为 error')
+      assert.equal(s.result.optimized, '优化后的提示词')
+    },
+  )
+  console.log('✓ c23 损坏 SSE 帧被跳过')
+}
+
+// c24. 回归:retry 必须拼回斜杠命令前缀(last.text 只存正文),否则
+//      「重新优化」与随后的「替换输入框」都会丢掉命令词
+{
+  const { ctx } = makeCtx()
+  const c = createOptimizerController(ctx)
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('/goal 帮我写个请假条', 's1')
+      assert.equal(calls[0].body.text, '帮我写个请假条', '首次发送只发正文')
+      c.retry()
+      await sleep(10)
+      assert.equal(calls[1].body.text, '帮我写个请假条', 'retry 应重新拆出正文')
+      assert.equal(c.getSnapshot().last.prefix, '/goal', 'retry 后前缀必须仍在,供替换时拼回')
+      // 替换输入框写入的内容 = 前缀 + 优化稿
+      assert.equal(
+        `${c.getSnapshot().last.prefix} ${c.getSnapshot().result.optimized}`,
+        '/goal 优化后的提示词',
+        '替换必须保留命令前缀',
+      )
+      // 普通文本 retry 不受影响
+      await c.optimize('普通草稿', 's2')
+      c.retry()
+      await sleep(10)
+      assert.equal(calls[3].body.text, '普通草稿')
+      assert.equal(c.getSnapshot().last.prefix, undefined)
+    },
+  )
+  console.log('✓ c24 retry 保留斜杠前缀')
+}
+
+// c25. 0.2.1 适配:上下文优先从会话事件窗口(ctx.sessions.binding().eventSource)取,
+//      并且不再触碰 legacy 查询面。这是「携带上下文」在 0.2.x 上真正生效的路径
+//      ——旧实现只调 connection.api.sessions.history,而上游从未提供它,等于一直静默降级。
+{
+  const ctx = {}
+  ctx.modelDirectories = { directoryFor: () => ({ load: async () => ({ current: { provider: 'p', model: 'm' }, groups: [], status: 'ready', error: null }) }) }
+  let legacyCalls = 0
+  ctx.connection = { api: { sessions: { history: async () => { legacyCalls += 1; return { ok: true, value: { events: [] } } } } } }
+  ctx.sessions = {
+    binding: (sessionId) =>
+      sessionId === 's1'
+        ? {
+            eventSource: {
+              getSnapshot: () => ({
+                entries: [
+                  { type: 'event', event: { type: 'user/message', seq: 0, time: 1, data: { source: { kind: 'user' }, content: [{ type: 'text', text: '窗口里的用户消息' }] } } },
+                  { type: 'event', event: { type: 'assistant/message', seq: 1, time: 2, data: { message: { content: [{ type: 'text', text: '窗口里的助手回复' }] } } } },
+                ],
+              }),
+            },
+          }
+        : undefined,
+  }
+  const c = createOptimizerController(ctx, { getSessions: () => ctx.sessions })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      const ctxTurns = calls[0].body.context
+      assert.equal(ctxTurns.length, 2, '应从事件窗口取到两条上下文')
+      assert.equal(ctxTurns[0].text, '窗口里的用户消息')
+      assert.equal(ctxTurns[1].text, '窗口里的助手回复')
+      assert.equal(legacyCalls, 0, '窗口可用时不应再调 legacy 查询面')
+    },
+  )
+  console.log('✓ c25 上下文优先来自会话事件窗口')
+}
+
+// c26. 窗口取不到(会话未保留/服务缺席)时安静降级为无上下文,且不抛错。
+{
+  const ctx = {}
+  ctx.connection = {}
+  ctx.sessions = { binding: () => undefined }
+  const c = createOptimizerController(ctx, { getSessions: () => ctx.sessions })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(calls[0].body.context, undefined, '无窗口时 context 应为 undefined')
+      assert.equal(c.getSnapshot().status, 'done', '降级不应影响优化本身')
+    },
+  )
+  console.log('✓ c26 无事件窗口时安静降级')
+}
+
+// c27. 回归:事件窗口有内容但榨不出对话(只有 transient 实时块)时,
+//      必须**继续**降级到 legacy 查询面,而不是直接放弃。
+//      (旧实现在此处 return undefined,使 legacy 分支成为死代码。)
+{
+  const ctx = {}
+  let legacyCalls = 0
+  ctx.connection = {
+    api: {
+      sessions: {
+        history: async () => {
+          legacyCalls += 1
+          return {
+            ok: true,
+            value: {
+              hasMore: false,
+              events: [
+                { event: { type: 'user/message', seq: 0, time: 1, data: { source: { kind: 'user' }, content: [{ type: 'text', text: '来自 legacy 的用户消息' }] } } },
+                { event: { type: 'assistant/message', seq: 1, time: 2, data: { message: { content: [{ type: 'text', text: '来自 legacy 的助手回复' }] } } } },
+              ],
+            },
+          }
+        },
+      },
+    },
+  }
+  ctx.sessions = {
+    binding: () => ({
+      eventSource: {
+        getSnapshot: () => ({
+          // 只有 transient 实时块,extractContextTurns 榨不出任何对话
+          entries: [
+            { type: 'transient', event: { type: 'assistant/live-chunk', seq: 1.5, time: 3, data: { chunk: { type: 'text-delta', text: '未落定的实时片段' } } } },
+          ],
+        }),
+      },
+    }),
+  }
+  const c = createOptimizerController(ctx, { getSessions: () => ctx.sessions })
+  await withFetch(
+    () => sseResponse([DONE]),
+    async (calls) => {
+      await c.optimize('草稿', 's1')
+      assert.equal(legacyCalls, 1, '窗口榨不出对话时必须回退到 legacy 查询面')
+      const ctxTurns = calls[0].body.context
+      assert.ok(Array.isArray(ctxTurns) && ctxTurns.length === 2, '应使用 legacy 提供的上下文')
+      assert.equal(ctxTurns[0].text, '来自 legacy 的用户消息')
+      assert.ok(!JSON.stringify(ctxTurns).includes('未落定的实时片段'), 'transient 片段不得进入上下文')
+    },
+  )
+  console.log('✓ c27 窗口无对话时回退到 legacy 查询面')
+}
+
+console.log('\ncontroller: all passed')

@@ -27,6 +27,19 @@
 // /config 现在回传 armed / injected / lastError；设置页据此显示真实状态，
 // 不再无条件显示「已保存」。注入失败时把内核错误原文一路带到 UI。
 //
+// ── 0.4.0 新增：提示词卡（多份提示词留存 + 一键切换） ──────────────────────
+// 配置文件新增 `cards` 字段：数组，每张 { id, name, text }。刻意**与 enabled/mode/text
+// 同文件**：读（GET 回读）、写（非破坏性合并）、陌生键告警、proto 错配保护全部复用同一条
+// 通道，不引入第二处落盘。卡片文本只有被「使用」后才成为 live.text —— 在那之前不参与
+// 注入、也不参与变量扫描（激活瞬间它就是 live.text，告警自然覆盖）。
+//
+// 协议号 2→3 的原因：新界面 + 旧宿主（只刷新页面没重启进程）时，旧宿主的 normalize
+// 会把 POST 里的 cards **静默丢掉** —— 正是本插件最忌讳的「界面说存了、数据没了」。
+// proto 拉到 3 后新界面能识别这种错配，把卡片区禁用并把原因说清。
+//
+// 另修一条既有隐患：POST 的 cards 字段**必须是数组**才认。非数组（客户端 bug / 手工
+// 请求）不得把磁盘上已有的卡片清空 —— strip 掉该字段、保留现状，与「非破坏性写盘」同一条立场。
+//
 // 配置存 $DSH_HOME/prompt-custom.json；读写走插件自己的 webServer 路由。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,7 +59,8 @@ const CONFIG_ROUTE = '/api/dsh-prompt-custom/config';
 const PREVIEW_ROUTE = '/api/dsh-prompt-custom/preview';
 // HTTP 接口协议版本。client 会核对它：宿主 Node 进程不重启就不会换插件代码，
 // 而页面一刷新就会拿到新的 client bundle —— 这个错配必须能被 UI 说清楚。
-const API_PROTO = 2;
+// 2→3（0.4.0）：config 增加了 cards 字段；旧宿主会静默丢弃 POST 里的 cards。
+const API_PROTO = 3;
 
 function configPath() {
   const home = process.env.DSH_HOME && String(process.env.DSH_HOME).trim()
@@ -87,12 +101,49 @@ function writeFileConfig(cfg) {
   return file;
 }
 
+// 提示词卡的上限与字段规格（client 侧 CARDS_MAX 与 CARD_ID 判据必须与这里配对）。
+const MAX_CARDS = 50;
+const CARD_NAME_MAX = 60;
+const CARD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** 与 client 的 newCardId() 同形状（主机侧只做兜底：手工编辑的文件里缺 id 时补一个）。 */
+function makeCardId() {
+  return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/**
+ * 净化卡片数组。注意签名与语义：**非数组一律归 []**（不是 null）——
+ * 调用点要先判定「body 里到底带没带 cards 字段」，带非数组时 strip 掉整个字段
+ * 让 merge 保留现状；能走到这里的非数组只可能是磁盘上本来就没有 cards（冷启动），
+ * 归 [] 正是「还没有卡片」。
+ *
+ * 逐张净化：非对象/双空（name 与 text 都为空）丢弃；name 截断；id 缺失或不合规补发。
+ * 上限 MAX_CARDS：超出截断（客户端 UI 同值封顶，正常交互走不到这里；手工编辑的极端
+ * 文件由 GET 回读时截断展示，保存时落成截断后的数组 —— 在代码注释里明说，不装看不见）。
+ */
+function sanitizeCards(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const text = typeof raw.text === 'string' ? raw.text : '';
+    let name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    if (name.length > CARD_NAME_MAX) name = name.slice(0, CARD_NAME_MAX);
+    if (!name && !text) continue;
+    const id = typeof raw.id === 'string' && CARD_ID.test(raw.id) ? raw.id : makeCardId();
+    out.push({ id, name: name || '未命名卡片', text });
+    if (out.length >= MAX_CARDS) break;
+  }
+  return out;
+}
+
 function normalize(input) {
   const src = input && typeof input === 'object' ? input : {};
   return {
     enabled: src.enabled === true,
     mode: src.mode === 'replace' ? 'replace' : 'append',
-    text: typeof src.text === 'string' ? src.text : ''
+    text: typeof src.text === 'string' ? src.text : '',
+    cards: sanitizeCards(src.cards)
   };
 }
 
@@ -211,7 +262,7 @@ function sectionNames(assembly) {
  * 新代码读不懂旧文件里的 `text` → 用户**正在生效的提示词会静默消失**。
  * 这个插件已经吃过一次「静默失效」的亏（见 index.js 顶部注释），不能在同源风险上再栽一次。
  */
-const KNOWN_CONFIG_KEYS = new Set(['enabled', 'mode', 'text']);
+const KNOWN_CONFIG_KEYS = new Set(['enabled', 'mode', 'text', 'cards']);
 
 export function apply(ctx, config) {
   const log = (msg) => { try { ctx.logger?.info?.(msg); } catch { console.log(msg); } };
@@ -422,6 +473,8 @@ export function apply(ctx, config) {
     if (knownVarNames) {
       // 注意：这里扫描的是**所有承载提示词文本的字段**。将来若把 text 拆成多段，
       // 必须把新字段一并加进来，否则未知变量告警会漏掉一半（后果是每轮模型步抛错）。
+      // 0.4.0 的 cards 不在此列：卡片文本在被「使用」之前不参与注入，
+      // 激活瞬间它就变成 live.text，由这条扫描自然覆盖。
       for (const key of ['text']) {
         try { scanVariables(String(live[key] || ''), knownVarNames, sink); } catch { /* ignore */ }
       }
@@ -466,8 +519,14 @@ export function apply(ctx, config) {
       }
       if (req.method === 'POST') {
         try {
-          const body = await readBody(req);
-          const saved = await setConfig(body && typeof body === 'object' ? body : {});
+          // 上限 2MB：主文本 + 最多 50 张卡片。默认 256KB 对卡片集太紧。
+          const body = await readBody(req, 2 * 1024 * 1024);
+          // 部分更新语义：body 里哪个字段在场就更新哪个（setConfig 会与 live 合并）。
+          // cards 只认数组：非数组（客户端 bug / 手写请求 / 旧客户端残留）strip 掉，
+          // 不得把磁盘上已有的卡片清空 —— 与「非破坏性写盘」同一条立场。
+          const patch = body && typeof body === 'object' && !Array.isArray(body) ? { ...body } : {};
+          if ('cards' in patch && !Array.isArray(patch.cards)) delete patch.cards;
+          const saved = await setConfig(patch);
           await refreshKnownVars();
           sendJson(res, 200, { ok: true, config: saved, ...status(), ...variableWarnings() });
         } catch (error) {

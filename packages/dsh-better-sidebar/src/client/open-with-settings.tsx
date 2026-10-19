@@ -5,12 +5,12 @@
  * whether they speak the VSCode URL dialect). Persisted as the editor
  * blob's `openWith` key through the settings popup's `updatePluginSetting`.
  *
- * The popup renders the declarative rows (the editorExplorer picker) ABOVE
- * this panel — SettingsBody renders the custom panel after the row list, so
- * this component owns only its own section.
+ * The popup renders the declarative rows (the openWithPluginTargets switch)
+ * ABOVE this panel — SettingsBody renders the custom panel after the row
+ * list, so this component owns only its own section.
  */
 import { useState } from 'react'
-import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   isValidCustomEditor,
   newCustomEditorId,
@@ -121,7 +121,7 @@ export function OpenWithSettings(props: {
             title={t('openWithSettingsRemove')}
             onClick={() => { removeCustom(editor.id) }}
           >
-            <IconCloseOutline16 size={14} />
+            <IconCloseOutlineRegular size={14} />
           </button>
         </div>
       ))}

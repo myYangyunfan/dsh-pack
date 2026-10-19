@@ -268,7 +268,7 @@ test("readSettings：无 settings 服务 / 未注册命名空间一律按默认�
   assert.deepEqual(host.readSettings({ settings: settingsStub([], { throwOnDescribe: true }) }), {});
   assert.deepEqual(host.readSettings({ settings: settingsStub([]) }), {});
   assert.deepEqual(
-    host.readSettings({ settings: settingsStub([{ ns: "balance", value: { showBalanceDock: false, prices: { "deepseek-v4-pro": { cacheMiss: 1 } } } }]) }),
+    host.readSettings({ settings: settingsStub([{ ns: "balance", value: { showBalanceDock: false, balancePrices: { "deepseek-v4-pro": { cacheMiss: 1 } } } }]) }),
     { showBalanceDock: false, balancePrices: { "deepseek-v4-pro": { cacheMiss: 1 } } },
   );
   // 反证：只实现**不存在的** get() 的服务桩必须读不到任何东西。

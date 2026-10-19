@@ -1,0 +1,212 @@
+import { useSyncExternalStore } from 'react'
+
+/**
+ * 界面文案的 zh/en 字典,跟随 DSH 界面语言(dsh-client-locale 服务)。
+ * 服务缺席(非 web 环境/老版本)时回落中文;组件经 useT() 取文案,
+ * 语言切换会触发重渲染(locale face 的 revision 会 bump)。
+ */
+
+/** locale 服务的最小依赖面(与 dsh-client-locale 的 LocaleFace 形状一致)。 */
+export interface LocaleFace {
+  subscribe(fn: () => void): () => void
+  getSnapshot(): { active: string }
+}
+
+let face: LocaleFace | null = null
+
+/** 由 client 入口在运行时安装(可选消费,缺席保持 null)。 */
+export function installLocaleFace(next: LocaleFace | null): void {
+  face = next
+}
+
+const dict = {
+  zh: {
+    'button.optimize': '优化',
+    'button.optimizing': '优化中…',
+    'button.title': '分析并优化当前输入的提示词',
+    'button.titleEmpty': '先在输入框输入提示词',
+    'panel.aria': '提示词优化',
+    'panel.title': '提示词优化',
+    'panel.closeTitle': '关闭 (Esc)',
+    'panel.close': '关闭',
+    'panel.stage.waiting': '等待模型响应',
+    'panel.stage.analyzing': '正在分析诊断',
+    'panel.stage.writing': '正在输出优化稿',
+    'panel.escCancel': 'Esc 取消',
+    'panel.analysis': '分析诊断',
+    'panel.optimized': '优化结果',
+    'panel.error': '出错了',
+    'panel.cancelled': '已取消优化,以下为已生成的部分内容。',
+    'panel.retry': '重试',
+    'panel.replace': '替换输入框',
+    'panel.copy': '复制',
+    'panel.copied': '已复制 ✓',
+    'panel.reoptimize': '重新优化',
+    'panel.reoptimizeTitle': '重新运行优化:若草稿相对上一轮结果有改动,会携带上轮结果续改;否则全新生成',
+    'panel.undo': '撤回',
+    'panel.appliedShort': '已替换 ✓',
+    'panel.undoneShort': '已撤回 ✓',
+    'panel.fallback': '已回退',
+    'panel.duration': '用时',
+    'panel.truncated': '输出达到 Token 上限被截断。可在设置的插件页「提示词优化」中调高「最大输出 Token」。',
+    'panel.notWellFormed': '模型未完全遵守输出格式,以上内容可能混入多余文字,替换前请扫一眼。',
+    'settings.loading': '设置加载中…',
+    // 0.2.1-rc.2 删除了 ConfigFormSnapshot.mode('host' | 'memory'):设置只可能是
+    // 宿主持久化,不再有浏览器进程内内存模式。文案随之去掉「内存模式」措辞,
+    // 只保留「这份部署不对外提供该命名空间 / 当前只读」两种真实状态。
+    'settings.unavailable': '当前宿主未向此页面开放本插件的设置命名空间;可用组合层配置,或在 dsh 设置中检查插件是否启用。',
+    'settings.readOnly': '当前设置只读:宿主拒绝写入,改动不会保存。',
+    'settings.undo': '撤销上一次修改',
+    'settings.undoTitle': '恢复这次修改前的全部设置(仅本次页面会话内可撤销)',
+    'settings.group.model': '模型',
+    'settings.group.params': '调用参数',
+    'settings.group.context': '上下文',
+    'settings.model': '优化用模型',
+    'settings.model.follow': '跟随当前会话(默认)',
+    'settings.model.desc': '留空跟随会话;固定后所有优化都用这个模型',
+    'settings.refresh': '↻ 刷新',
+    'settings.refreshTitle': '重新拉取模型目录(新增提供方/模型后使用)',
+    'settings.fallbackModel': '回退模型',
+    'settings.fallbackModel.none': '无(默认)',
+    'settings.fallbackModel.desc': '主路由未产出内容即失败时自动换用',
+    'settings.test': '模型连通性',
+    'settings.test.desc': '按同一路由发一个小探活调用',
+    'settings.test.run': '测试连接',
+    'settings.test.running': '测试中…',
+    'settings.test.ok': '连接正常:{provider} / {model}({latencyMs}ms)',
+    'settings.language': '输出语言',
+    'settings.language.desc': '优化结果使用的语言',
+    'settings.mode': '优化模式',
+    'settings.mode.desc': '快速模式输出与等待约减半;完整模式多一段分析诊断',
+    'settings.mode.full': '完整(分析诊断 + 优化)',
+    'settings.mode.fast': '快速(仅优化,等待约减半)',
+    'settings.mode.full.short': '完整',
+    'settings.mode.fast.short': '快速',
+    'settings.effort': '推理强度',
+    'settings.effort.desc': '推理模型上,最低档显著缩短等待',
+    'settings.effort.lowest': '降到最低档(默认,推理模型更快)',
+    'settings.effort.session': '跟随当前会话',
+    'settings.effort.lowest.short': '最低档',
+    'settings.effort.session.short': '跟随会话',
+    'settings.maxTokens': '最大输出 Token',
+    'settings.maxTokens.desc': '单次优化调用的输出上限',
+    'settings.timeout': '超时时间(秒)',
+    'settings.timeout.desc': '超时后中止调用并给出提示',
+    'settings.temperature': '采样温度',
+    'settings.temperatureTitle': '优化是格式化任务,低温输出更稳定;默认 0.2,一般无需调整',
+    'settings.temperature.desc': '低温输出更稳定(默认 0.2)',
+    'settings.autoMaxTokens': '输出上限自适应',
+    'settings.autoMaxTokens.desc': '长草稿自动提高上限,避免截断',
+    'settings.includeContext': '携带上下文',
+    'settings.includeContext.desc': '参考最近对话,优化方向更贴合',
+    'settings.validate.maxTokens': '请输入 1024–32768 之间的数字',
+    'settings.validate.timeout': '请输入 10–600 之间的数字',
+    'settings.validate.temperature': '请输入 0–2 之间的数字',
+    'settings.repoTitle': '在 GitHub 上查看源码 / 反馈问题',
+  },
+  en: {
+    'button.optimize': 'Optimize',
+    'button.optimizing': 'Optimizing…',
+    'button.title': 'Analyze and optimize the prompt in the input box',
+    'button.titleEmpty': 'Type a prompt in the input box first',
+    'panel.aria': 'Prompt optimizer',
+    'panel.title': 'Prompt Optimizer',
+    'panel.closeTitle': 'Close (Esc)',
+    'panel.close': 'Close',
+    'panel.stage.waiting': 'Waiting for the model',
+    'panel.stage.analyzing': 'Analyzing',
+    'panel.stage.writing': 'Writing the optimized prompt',
+    'panel.escCancel': 'Esc to cancel',
+    'panel.analysis': 'Analysis',
+    'panel.optimized': 'Optimized Prompt',
+    'panel.error': 'Something went wrong',
+    'panel.cancelled': 'Optimization cancelled; below is the partial output generated so far.',
+    'panel.retry': 'Retry',
+    'panel.replace': 'Replace Input',
+    'panel.copy': 'Copy',
+    'panel.copied': 'Copied ✓',
+    'panel.reoptimize': 'Re-optimize',
+    'panel.reoptimizeTitle': 'Re-runs optimization: carries the previous result only if the draft changed since then; otherwise regenerates fresh',
+    'panel.undo': 'Undo',
+    'panel.appliedShort': 'Applied ✓',
+    'panel.undoneShort': 'Undone ✓',
+    'panel.fallback': 'fallback',
+    'panel.duration': 'took',
+    'panel.truncated': 'Output hit the token cap and was truncated. Raise "Max output tokens" in the "Prompt Optimizer" tab of the plugins settings page.',
+    'panel.notWellFormed': 'The model did not fully follow the output format; the content above may contain extra text — review before replacing.',
+    'settings.loading': 'Loading settings…',
+    // 0.2.1-rc.2 removed ConfigFormSnapshot.mode ('host' | 'memory'): settings are
+    // always Host-persisted now, there is no process-local memory mode.
+    'settings.unavailable': 'This Host does not expose the plugin settings namespace to this page; use composition config, or check that the plugin is enabled.',
+    'settings.readOnly': 'Settings are read-only: the Host refuses writes, so changes will not be saved.',
+    'settings.undo': 'Undo last change',
+    'settings.undoTitle': 'Restore all settings to before this change (undo is session-only)',
+    'settings.group.model': 'Model',
+    'settings.group.params': 'Generation parameters',
+    'settings.group.context': 'Context',
+    'settings.model': 'Optimizer model',
+    'settings.model.follow': 'Follow current session (default)',
+    'settings.model.desc': 'Leave empty to follow the session; pin one to always optimize with it',
+    'settings.refresh': '↻ Refresh',
+    'settings.refreshTitle': 'Reload the model catalog (after adding providers/models)',
+    'settings.fallbackModel': 'Fallback model',
+    'settings.fallbackModel.none': 'None (default)',
+    'settings.fallbackModel.desc': 'Switched to automatically when the main route fails before producing output',
+    'settings.test': 'Connectivity',
+    'settings.test.desc': 'Sends a tiny probe call through the same routing',
+    'settings.test.run': 'Test connection',
+    'settings.test.running': 'Testing…',
+    'settings.test.ok': 'Connected: {provider} / {model} ({latencyMs}ms)',
+    'settings.language': 'Output language',
+    'settings.language.desc': 'Language of the optimized result',
+    'settings.mode': 'Mode',
+    'settings.mode.desc': 'Fast halves the output tokens and the wait; full adds an analysis pass',
+    'settings.mode.full': 'Full (analysis + rewrite)',
+    'settings.mode.fast': 'Fast (rewrite only, ~half the wait)',
+    'settings.mode.full.short': 'Full',
+    'settings.mode.fast.short': 'Fast',
+    'settings.effort': 'Reasoning effort',
+    'settings.effort.desc': 'On reasoning models the lowest tier shortens the wait significantly',
+    'settings.effort.lowest': 'Clamp to lowest tier (default, faster on reasoning models)',
+    'settings.effort.session': 'Follow current session',
+    'settings.effort.lowest.short': 'Lowest',
+    'settings.effort.session.short': 'Follow session',
+    'settings.maxTokens': 'Max output tokens',
+    'settings.maxTokens.desc': 'Output cap per optimization call',
+    'settings.timeout': 'Timeout (seconds)',
+    'settings.timeout.desc': 'The call is aborted and reported after this many seconds',
+    'settings.temperature': 'Temperature',
+    'settings.temperatureTitle': 'Optimization is a formatting task — low temperature gives stabler output; default 0.2, usually no need to change',
+    'settings.temperature.desc': 'Low temperature gives stabler output (default 0.2)',
+    'settings.autoMaxTokens': 'Adaptive output cap',
+    'settings.autoMaxTokens.desc': 'Raise the cap for long drafts instead of truncating them',
+    'settings.includeContext': 'Include context',
+    'settings.includeContext.desc': 'Read recent conversation so the rewrite matches your intent',
+    'settings.validate.maxTokens': 'Enter a number between 1024 and 32768',
+    'settings.validate.timeout': 'Enter a number between 10 and 600',
+    'settings.validate.temperature': 'Enter a number between 0 and 2',
+    'settings.repoTitle': 'View source / report issues on GitHub',
+  },
+} as const
+
+export type MessageKey = keyof (typeof dict)['zh']
+
+/** 非 hook 版取值(语言在函数调用时读取;不触发重渲染,组件请用 useT)。 */
+export function translate(key: MessageKey, params?: Record<string, string | number>): string {
+  const active = face?.getSnapshot().active === 'en' ? 'en' : 'zh'
+  return interpolate(dict[active][key] ?? dict.zh[key], params)
+}
+
+function interpolate(text: string, params?: Record<string, string | number>): string {
+  if (!params) return text
+  return text.replace(/\{(\w+)\}/g, (m, name: string) => (params[name] !== undefined ? String(params[name]) : m))
+}
+
+/** 组件用:跟随界面语言,语言切换自动重渲染。 */
+export function useT(): (key: MessageKey, params?: Record<string, string | number>) => string {
+  const active = useSyncExternalStore(
+    (callback) => face?.subscribe(callback) ?? (() => {}),
+    () => (face?.getSnapshot().active === 'en' ? 'en' : 'zh'),
+  )
+  return (key, params) => interpolate(dict[active][key] ?? dict.zh[key], params)
+}

@@ -1,0 +1,19 @@
+# dsh-goal-completion 的 bundle 层 patch（自挂载声明）
+#
+# 用途：内核右栏里的「目标收尾」标签页——显示当前会话目标的状态机，并提供
+#   官方 GoalBar 没有的那个 complete 动词（远端有 Remote("complete")，界面上
+#   只有 save/cancel/pause/resume/edit/clear，人没法手动收尾）。
+#
+# 为什么必须由包自带这份 patch：纯插件包形态下没有壳层替我们写用户 profile 的
+# cordis.patch.yml，真正把插件装进 cordis 插件栈的是包自己这一层（由 package.json
+# 的 dsh.bundle.patch 指过来）。口径对齐 dsh-balance / dsh-builtin-manager。
+#
+# ⚠ 稳定契约：id 是 cordis 补丁按行寻址的键，也是「内置插件」页里那条停用覆盖
+#   （$DSH_HOME/profiles/<name>/cordis.patch.yml 的 "- id: goal-completion / disabled: true"）
+#   的匹配键。改 id 会让用户已写的覆盖失配成孤儿行——dsh-super-injector 就为此付过
+#   学费（bundle 迁移自愈的 dropBlocksByIds 永不命中残留行 → 双登记启动崩溃，issue #104）。
+#   不许改。
+# ⚠ 本行禁止写 `disabled: !!js`：必选行上抛错会直接中断启动。
+- insert:
+    - id: goal-completion
+      name: '@dsh-pack/dsh-goal-completion'

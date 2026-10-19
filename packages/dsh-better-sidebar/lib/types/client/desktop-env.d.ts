@@ -1,13 +1,9 @@
 /**
  * Desktop-shell detection for the sidebar. Shells may stamp the render URL
  * with `dsh-desktop-mode` / `dsh-desktop-platform` (the official Electron
- * shell does). Parsed once per page and memoized (the URL never changes
+ * shell does) and expose `window.__DSH_DESKTOP_FILE_PATH__` through a
+ * preload. Parsed once per page and memoized (the URL never changes
  * mid-session); `resetDesktopEnvForTests` clears the memo for unit tests.
- *
- * The retired self-built shell also used to expose a private preload global
- * as a second detection source. Nothing in this repo's plugin pack builds a
- * preload, so that source is gone: URL stamps are the only shell fact this
- * module can observe.
  *
  * GEOMETRY POLICY: this module only REPORTS shell facts — it never decides
  * how to adapt. The strip height comes from standard signals first (the
@@ -19,7 +15,7 @@
  * without the WCO API.
  */
 export interface DesktopEnv {
-    /** Running inside a desktop shell that stamped the render URL. */
+    /** Running inside a desktop shell (any URL stamp or preload marker). */
     readonly desktop: boolean;
     /** `advanced` = frameless/custom-titlebar shell; `compatibility` = native frame. */
     readonly mode: 'compatibility' | 'advanced' | null;

@@ -1,4 +1,24 @@
-# @dsh-pack/dsh-change-review
+# dsh-change-review
+
+## 0.1.2
+
+### Patch Changes
+
+- **同型缺陷同批修：自动模式不再覆盖用户正在写的草稿（与 dsh-auto-compact 0.1.2 一条根）。**
+
+  `fireReview` 也是 `setDraft(prompt) + submit()`，而审核提示是一大段生成文本——
+  自动模式在「变更停止 20 秒」后触发，那一刻用户完全可能正在输入框里写下一轮的要求，
+  整篇草稿会被审核请求顶掉且不可恢复（`setDraft` 是整篇替换并立刻持久化）。
+
+  现在 `fireReview` 先读 occupant 每帧镜像的 `cap.gate`（同一份 `composerGate` 判据：
+  草稿为空且无附件、输入形态 `plain`、会话不 `running` 且无 `pendingSubmissions` 才 `ready`），
+  非 `ready` 一律不提交、**保留 `pendingChanges`**；返回值由布尔改成状态串
+  `fired / blocked / none`（旧代码用真值判断，字符串会变恒真——两处调用点同批改），
+  自动重试链只在 `blocked` 时按 45s 退避、最多 8 次，手动按钮则把被挡的原因说出来
+  （新增 `nowBlocked` / `nowUnknown` 中英文案），`note` 与真判据对齐。
+
+- 回归锁：与 `unit-auto-compact-gate.test.js` 同套件的 change-review 半边
+  （闸门同源判据 + `blocked` 不吞待审内容 + 状态串不被真值判断误当成成功）。
 
 ## 0.1.1
 

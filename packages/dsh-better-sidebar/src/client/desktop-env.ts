@@ -4,11 +4,6 @@
  * shell does). Parsed once per page and memoized (the URL never changes
  * mid-session); `resetDesktopEnvForTests` clears the memo for unit tests.
  *
- * The retired self-built shell also used to expose a private preload global
- * as a second detection source. Nothing in this repo's plugin pack builds a
- * preload, so that source is gone: URL stamps are the only shell fact this
- * module can observe.
- *
  * GEOMETRY POLICY: this module only REPORTS shell facts — it never decides
  * how to adapt. The strip height comes from standard signals first (the
  * Window Controls Overlay API, see wco.ts), then the documented contract
@@ -19,7 +14,7 @@
  * without the WCO API.
  */
 export interface DesktopEnv {
-  /** Running inside a desktop shell that stamped the render URL. */
+  /** Running inside a desktop shell (URL stamp). */
   readonly desktop: boolean
   /** `advanced` = frameless/custom-titlebar shell; `compatibility` = native frame. */
   readonly mode: 'compatibility' | 'advanced' | null
@@ -51,19 +46,11 @@ export function parseDesktopEnv(): DesktopEnv {
   const platformParam = params.get('dsh-desktop-platform')
   const platform = platformParam !== null && platformParam !== '' ? platformParam.toLowerCase() : null
   const desktop = mode !== null
-  // Backward-compatible titlebar inset: the documented `dsh-desktop-titlebar-inset`
-  // URL contract wins; the legacy desktop shell announces its self-drawn title-bar
-  // height on <html data-dsh-title-bar-height="N"> (kept as a fallback so the
-  // pre-v0.15 shell keeps working without a URL stamp).
-  const titlebarInsetRaw = params.get('dsh-desktop-titlebar-inset')
-    ?? (hasWindow && typeof document !== 'undefined'
-      ? document.documentElement.getAttribute('data-dsh-title-bar-height')
-      : null)
   cached = {
     desktop,
     mode,
     platform,
-    titlebarInset: parseTitlebarInset(titlebarInsetRaw),
+    titlebarInset: parseTitlebarInset(params.get('dsh-desktop-titlebar-inset')),
   }
   return cached
 }

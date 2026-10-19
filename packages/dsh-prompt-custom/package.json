@@ -1,6 +1,6 @@
 {
   "name": "@dsh-pack/dsh-prompt-custom",
-  "version": "0.3.5",
+  "version": "0.5.0",
   "description": "自定义 System Prompt：覆盖或追加 DeepSeek Harness 官方默认系统提示词（独立移植版，不依赖内核 settings API）",
   "license": "MIT",
   "type": "module",
@@ -15,7 +15,10 @@
     },
     "client": {
       "entry": "client",
-      "platform": "web"
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
     }
   },
   "peerDependencies": {

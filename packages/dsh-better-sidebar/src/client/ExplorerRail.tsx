@@ -1,108 +1,77 @@
 /**
- * The persistent Explorer rail: the file tree column that lives to the LEFT of
- * the tabbed workbench (VSCode's sidebar), inside the panel body. Unlike the
- * old per-tab docked tree it is decoupled from any editor tab — it stays put
- * while files open as tabs beside it, and closing every tab never hides it.
+ * The persistent Explorer rail: the file-tree column that lives at the LEFT
+ * edge of every editor window (VSCode's sidebar), migrated from the PACK
+ * 0.15.x line. Unlike the old per-tab docked tree it is decoupled from any
+ * editor tab — it stays put while files open as tabs beside it, and closing
+ * every tab never hides it (the host's right Sidebar owns the tab strip, so
+ * the rail is rendered inside each editor body over the SAME per-session
+ * state — see EditorHost).
  *
- * It owns only the column chrome (a slim header with a collapse affordance and
- * a right-edge drag handle) and wires the self-contained {@link TreePanel} to
- * the store. Every open gesture (single click, double click, the context
- * menu's "preview" / "open in new tab", search results) funnels through
- * {@link openSidebarFile}, which dedupes per path and lands the tab in the
- * active workbench pane — so a run of clicks accumulates distinct tabs and
- * NEVER replaces a previously opened one (the reported "预览会覆盖旧标签").
- *
- * The "open with" surface mirrors the editor host: it reads the same
- * pluginSettings['editor'] blob so a pin click or a settings edit re-renders
- * the menu immediately.
+ * It owns only the column chrome (a slim header with a collapse affordance
+ * and a right-edge drag handle) and wires the self-contained {@link TreePanel}
+ * to the props its host passes down. Every open gesture funnels through the
+ * host's per-path dedupe `openFile` (see EditorHost), so a run of tree clicks
+ * accumulates distinct tabs and NEVER replaces a previously opened one.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import clsx from 'clsx'
-import { IconChevronLeftOutline14, IconChevronRightOutline14, IconFolderOpen16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { Context } from '../context-types.ts'
-import { api } from './api.ts'
+import { useEffect, useRef, useState } from 'react'
+import {
+  IconChevronLeftOutlineRegular,
+  IconChevronRightOutlineRegular,
+  IconFolderOpenRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { createFrameBatcher } from './frame-batcher.ts'
-import { openSidebarFile } from './intercept.tsx'
-import { openWithSshActive, openWithUrl, parseOpenWithConfig, resolveOpenWithTargets } from './open-with.ts'
-import { updatePluginSettings } from './plugin-settings.ts'
+import type { OpenInApp } from './open-in-app.ts'
+import type { OpenWithTarget } from './open-with.ts'
+import type { BetterSidebarService } from './service.ts'
 import { TreePanel } from './TreePanel.tsx'
 import { t } from './locales.ts'
-import { clampExplorerWidth, type SidebarStore } from './state.ts'
+import { clampExplorerWidth } from './state.ts'
 import css from './sidebar.module.css'
 
-/** Stable empty blob for the editor pluginSettings read (a fresh `?? {}`
- *  would change identity every snapshot and loop useSyncExternalStore). */
-const EMPTY_PLUGIN_BLOB: Record<string, unknown> = {}
-
 export function ExplorerRail(props: {
-  ctx: Context
-  store: SidebarStore
-  sessionId: string | undefined
+  sessionId: string
   cwd: string | undefined
   expanded: string[]
+  revealed: string[]
+  /** Whether the owning editor tab is on screen: a parked tab's tree pauses
+   *  its git polling (the shared status store pauses when nothing visible
+   *  wants it). */
+  visible: boolean
   onToggleDir: (path: string) => void
-  onReferenceFile: (path: string) => void
+  onOpenFile: (path: string) => void
+  onOpenFileNewTab: (path: string) => void
+  onOpenFileSide: (path: string) => void
+  openInApp: OpenInApp
+  openWithTargets: OpenWithTarget[]
+  openWithPinned: string[]
+  openWithSsh: boolean
+  openWithShowPluginTargets: boolean
+  onOpenWith: (targetId: string, path: string) => void
+  onToggleOpenWithPin: (targetId: string) => void
+  onReferenceFile: (path: string, isDir: boolean) => void
+  onPathRenamed: (oldPath: string, newPath: string) => void
+  onPathDeleted: (path: string) => void
+  service: BetterSidebarService | undefined
   /** The persisted rail width (state.explorerWidth). */
   width: number
   /** Commit a drag-resized width into the store (clamped reducer). */
   onResize: (width: number) => void
-  /** Collapse the rail (toggleExplorer). */
+  /** Collapse the rail (the session-level toggleExplorer). */
   onCollapse: () => void
 }) {
-  const { ctx, store, sessionId, cwd, expanded, onToggleDir, onReferenceFile, width, onResize, onCollapse } = props
-
-  // The tree's "open with" configuration (pluginSettings['editor']): a blob
-  // subscription, so a pin click or a settings-page edit re-renders the menu
-  // immediately (identical to the editor host's read).
-  const editorBlob = useSyncExternalStore(
-    useCallback((callback: () => void) => store.subscribe(callback), [store]),
-    useCallback(() => store.getSnapshot().prefs.pluginSettings['editor'] ?? EMPTY_PLUGIN_BLOB, [store]),
-  )
-  const openWithConfig = useMemo(() => parseOpenWithConfig(editorBlob.openWith), [editorBlob])
-  const openWithTargets = useMemo(() => resolveOpenWithTargets(openWithConfig), [openWithConfig])
-
-  // Every open gesture is a fixed, per-path-deduped tab in the workbench. No
-  // transient preview slot, so nothing a single click opens can be replaced by
-  // the next one. A session-less rail cannot resolve a workspace path — no-op.
-  const openFile = useCallback((absolute: string): void => {
-    if (sessionId === undefined) return
-    openSidebarFile(ctx, store, sessionId, absolute)
-  }, [ctx, store, sessionId])
-
-  const openWith = (targetId: string, absolute: string): void => {
-    const target = openWithTargets.find(item => item.id === targetId)
-    if (target === undefined) return
-    if (target.kind === 'reveal') {
-      void api.openExternal({ action: 'reveal', path: absolute }).catch(
-        (error: unknown) => { console.error('open external failed', error) },
-      )
-      return
-    }
-    const url = openWithUrl(target, absolute, openWithConfig)
-    if (url === undefined) return
-    void api.openExternal({ action: 'url', url }).catch(
-      (error: unknown) => { console.error('open external failed', error) },
-    )
-  }
-
-  // Toggle one target's pinned state. The write is serialized (see
-  // plugin-settings.ts) and the menu re-renders when the store prefs land.
-  const toggleOpenWithPin = (targetId: string): void => {
-    updatePluginSettings(store, 'editor', (blob) => {
-      const config = parseOpenWithConfig(blob.openWith)
-      const pinned = config.pinned.includes(targetId)
-        ? config.pinned.filter(id => id !== targetId)
-        : [...config.pinned, targetId]
-      return { ...blob, openWith: { ...config, pinned } }
-    })
-  }
+  const {
+    sessionId, cwd, expanded, revealed, visible, onToggleDir, onOpenFile, onOpenFileNewTab,
+    onOpenFileSide, openInApp, openWithTargets, openWithPinned, openWithSsh,
+    openWithShowPluginTargets, onOpenWith, onToggleOpenWithPin, onReferenceFile,
+    onPathRenamed, onPathDeleted, service, width, onResize, onCollapse,
+  } = props
 
   // The right-edge drag-resize: pointer capture on the handle (no window
   // listeners — the captured pointer keeps tracking even off the handle). The
-  // rail docks LEFT of the workbench, so dragging RIGHT widens it. Moves are
-  // BATCHED per frame (createFrameBatcher) so a fast drag re-renders the tree
-  // at most once per frame instead of once per pointermove; release flushes and
-  // commits the final width into the store.
+  // rail docks LEFT of the editor column, so dragging RIGHT widens it. Moves
+  // are BATCHED per frame (createFrameBatcher) so a fast drag re-renders the
+  // tree at most once per frame instead of once per pointermove; release
+  // flushes and commits the final width into the store.
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const pendingWidthRef = useRef(0)
@@ -136,7 +105,7 @@ export function ExplorerRail(props: {
   return (
     <div className={css.explorerRail} style={{ width: liveWidth }}>
       <div className={css.explorerRailHeader}>
-        <IconFolderOpen16 size={14} />
+        <IconFolderOpenRegular size={14} />
         <span className={css.explorerRailTitle}>{t('explorer')}</span>
         <button
           type="button"
@@ -145,30 +114,34 @@ export function ExplorerRail(props: {
           title={t('explorerCollapse')}
           onClick={onCollapse}
         >
-          <IconChevronLeftOutline14 size={14} />
+          <IconChevronLeftOutlineRegular size={14} />
         </button>
       </div>
-      {sessionId !== undefined && (
-        <TreePanel
-          full
-          sessionId={sessionId}
-          cwd={cwd}
-          expanded={expanded}
-          onToggle={onToggleDir}
-          onOpenFile={openFile}
-          onOpenFilePermanent={openFile}
-          onOpenFileNewTab={openFile}
-          onPreviewFile={openFile}
-          openWithTargets={openWithTargets}
-          openWithPinned={openWithConfig.pinned}
-          openWithSsh={openWithSshActive(openWithConfig)}
-          onOpenWith={openWith}
-          onToggleOpenWithPin={toggleOpenWithPin}
-          onReferenceFile={onReferenceFile}
-        />
-      )}
+      <TreePanel
+        full
+        visible={visible}
+        sessionId={sessionId}
+        cwd={cwd}
+        expanded={expanded}
+        revealed={revealed}
+        onToggle={onToggleDir}
+        onOpenFile={onOpenFile}
+        onOpenFileNewTab={onOpenFileNewTab}
+        onOpenFileSide={onOpenFileSide}
+        openInApp={openInApp}
+        openWithShowPluginTargets={openWithShowPluginTargets}
+        openWithTargets={openWithTargets}
+        openWithPinned={openWithPinned}
+        openWithSsh={openWithSsh}
+        onOpenWith={onOpenWith}
+        onToggleOpenWithPin={onToggleOpenWithPin}
+        onReferenceFile={onReferenceFile}
+        onPathRenamed={onPathRenamed}
+        onPathDeleted={onPathDeleted}
+        service={service}
+      />
       <div
-        className={css.editorTreeResize}
+        className={css.explorerRailResize}
         role="separator"
         aria-orientation="vertical"
         aria-label={t('explorer')}
@@ -182,8 +155,8 @@ export function ExplorerRail(props: {
 }
 
 /** The collapsed rail: a thin strip offering a single affordance to bring the
- *  file tree back. Kept beside the workbench so collapse never reflows the tab
- *  area's right edge and the reopen control is always in the same place. */
+ *  file tree back. Kept beside the editor column so collapse never reflows the
+ *  viewer's right edge and the reopen control is always in the same place. */
 export function ExplorerRailCollapsed(props: { onExpand: () => void }) {
   return (
     <div className={css.explorerRailCollapsed}>
@@ -194,7 +167,7 @@ export function ExplorerRailCollapsed(props: { onExpand: () => void }) {
         title={t('explorerExpand')}
         onClick={props.onExpand}
       >
-        <IconChevronRightOutline14 size={14} />
+        <IconChevronRightOutlineRegular size={14} />
       </button>
     </div>
   )

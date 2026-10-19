@@ -1,7 +1,7 @@
 {
   "name": "@dsh-pack/dsh-balance",
-  "version": "0.1.2",
-  "description": "DeepSeek 账户余额 + 本轮会话费用估算（DSH Desktop 配套客户端插件，注册到对话统计栏 dock）",
+  "version": "0.2.0",
+  "description": "DeepSeek 账户余额 + 本轮会话费用估算（注册到对话统计栏 dock）",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -26,6 +26,7 @@
     }
   },
   "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.0",
     "react": "^18.2.0"
   },
   "files": [

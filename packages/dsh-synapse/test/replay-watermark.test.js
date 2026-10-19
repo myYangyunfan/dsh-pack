@@ -17,7 +17,8 @@ const toolResultEvent = (seq, turn, step, callId, text) => ({
 })
 
 function makeSession(events, extra = {}) {
-  return { id: 's1', header: { meta: { cwd: 'C:\\work\\synapse' } }, firstLiveSeq: 0, events, ...extra }
+  // 真实宿主形状（内核 0.2.x）：Session 没有 events 数组，整份日志走 snapshotEvents()。
+  return { id: 's1', header: { meta: { cwd: 'C:\\work\\synapse' } }, firstLiveSeq: 0, snapshotEvents: () => events, ...extra }
 }
 
 async function projectAndPersist(store, session) {

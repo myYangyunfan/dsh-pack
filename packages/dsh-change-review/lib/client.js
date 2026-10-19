@@ -10,7 +10,8 @@
  * 触发模式（设置页可调，默认手动）：
  *   · manual —— 设置页「立即审核当前会话变更」按钮触发；
  *   · auto   —— 投影新增变更且 20 秒无后续变更（一轮任务大概率已结束）时
- *               自动发送审核请求；轮次仍在进行导致提交被拒时退避重试；
+ *               自动发送审核请求；**发送前必须过 composerGate**（输入框为空且
+ *               这一轮已结束），被挡时保留待审内容并按 45 秒退避重试；
  *               两次自动审核之间强制 10 分钟冷却，防「审核引发修改→再审」
  *               循环。
  *
@@ -108,10 +109,45 @@ window.__ModuleLoader__.load({
         "最后单独一行给出结论：✅ 可以接受 / ⚠️ 需要注意（说明原因）/ ❌ 建议回滚（可用「文件」页一键还原）。";
     }
 
+    // 替用户提交前的闸门（与 dsh-auto-compact 同一份判据、同一套口径）：
+    // 内核 dock occupant 的真形状是 useInput(s => s) / useSession(s => s)
+    // （dsh-client-ui-conversation/lib/client.js:19738-19753），判空照 InputBar
+    // （:18803-18806 draft.trim()==="" && attachments.length===0）。
+    // setDraft 是整篇替换且立刻覆盖已持久化草稿、没有恢复通道，所以「草稿里有东西」
+    // 与「形状读不到」都必须停手——0.1.2 的根治点。
+    function composerGate(input, session) {
+      if (!input || typeof input !== "object") return "unknown";
+      if (typeof input.draft !== "string" || !Array.isArray(input.attachmentIds)) return "unknown";
+      if (input.draft.trim() !== "" || input.attachmentIds.length > 0) return "has-content";
+      if (typeof input.phase !== "string") return "unknown";
+      if (input.phase !== "plain") return "busy";
+      if (!session || typeof session !== "object") return "unknown";
+      if (session.running) return "busy";
+      if (Array.isArray(session.pendingSubmissions) && session.pendingSubmissions.length > 0) return "busy";
+      return "ready";
+    }
+
+    var unknownWarned = false;
+    function warnUnknown() {
+      if (unknownWarned) return;
+      unknownWarned = true;
+      try {
+        console.warn("[change-review] 读不到输入框/会话快照（useInput / useSession 形状变了？）——"
+          + "已停手不替用户提交，避免覆盖草稿；请对照内核 dsh-client-ui-conversation 的 dock 注入面复核");
+      } catch (e) { /* 无 console 环境 */ }
+    }
+
+    // 返回状态而不是布尔：blocked（草稿有内容/在跑/读不到）与 none（没东西可审）
+    // 在自动重试链和手动按钮上要分开说话——旧实现用真值判断，字符串会把它变成恒真。
     function fireReview(sessionId) {
       var cap = sessions.get(sessionId);
-      if (!cap || !cap.inputActions || typeof cap.inputActions.setDraft !== "function") return false;
-      if (!cap.pendingChanges || cap.pendingChanges.length === 0) return false;
+      if (!cap || !cap.inputActions || typeof cap.inputActions.setDraft !== "function") return "none";
+      if (!cap.pendingChanges || cap.pendingChanges.length === 0) return "none";
+      var gate = cap.gate || "unknown";
+      if (gate !== "ready") {
+        if (gate === "unknown") warnUnknown();
+        return "blocked";
+      }
       var prompt = buildReviewPrompt(cap.pendingChanges);
       try {
         cap.inputActions.setDraft(prompt);
@@ -123,13 +159,13 @@ window.__ModuleLoader__.load({
         }
         cap.reviewedAt = Date.now();
         cap.pendingChanges = [];
-        return true;
+        return "fired";
       } catch (e) {
-        return false;
+        return "blocked";
       }
     }
 
-    // 不可见的 dock occupant：持续镜像每个会话的 inputActions 与文件变更。
+    // 不可见的 dock occupant：持续镜像每个会话的 inputActions、文件变更与提交闸门。
     function ChangeReviewCapture(props) {
       var sessionId = props.sessionId;
       var inputActions = props.inputActions;
@@ -140,16 +176,27 @@ window.__ModuleLoader__.load({
         if (typeof useProjection === "function") changes = useProjection("fileChanges");
       } catch (e) { changes = null; }
 
+      var input = null;
+      var session = null;
+      try {
+        if (typeof props.useInput === "function") input = props.useInput(function (s) { return s; });
+      } catch (e) { input = null; }
+      try {
+        if (typeof props.useSession === "function") session = props.useSession(function (s) { return s; });
+      } catch (e) { session = null; }
+      var gate = composerGate(input, session);
+
       react.useEffect(function () {
         if (!sessionId) return;
         currentId = sessionId;
         var cap = sessions.get(sessionId);
         if (!cap) {
-          cap = { inputActions: null, pendingChanges: [], reviewedAt: 0, timer: null, retry: 0 };
+          cap = { inputActions: null, pendingChanges: [], reviewedAt: 0, timer: null, retry: 0, gate: "unknown" };
           sessions.set(sessionId, cap);
         }
         if (inputActions) cap.inputActions = inputActions;
-      }, [sessionId, inputActions]);
+        cap.gate = gate;
+      }, [sessionId, inputActions, gate]);
 
       react.useEffect(function () {
         if (!sessionId || !changes || !Array.isArray(changes.changes)) return;
@@ -179,8 +226,9 @@ window.__ModuleLoader__.load({
         cap.retry = 0;
         cap.timer = setTimeout(function attempt() {
           cap.timer = null;
-          var ok = fireReview(sessionId);
-          if (!ok && cap.pendingChanges.length > 0 && cap.retry < MAX_RETRY) {
+          var status = fireReview(sessionId);
+          if (status !== "blocked") return; // fired / none 都收手；blocked 说明草稿占用或还在跑轮次
+          if (cap.pendingChanges.length > 0 && cap.retry < MAX_RETRY) {
             cap.retry += 1;
             cap.timer = setTimeout(attempt, RETRY_MS);
           }
@@ -202,7 +250,9 @@ window.__ModuleLoader__.load({
       now: "立即审核当前会话变更",
       nowDone: "审核请求已发送",
       nowFail: "当前会话没有新变更或没有打开的对话",
-      note: "自动模式在变更停止 20 秒后触发，两次审核间隔至少 10 分钟；审核本身消耗一轮对话（计入 token 用量）。"
+      nowBlocked: "输入框里还有内容，或这一轮还在跑——先发送/清空并等它空闲，再手动审核（待审变更已保留）",
+      nowUnknown: "读不到输入框状态，已停手（不会覆盖你的草稿）",
+      note: "自动模式在变更停止 20 秒后触发，两次审核间隔至少 10 分钟；触发前会确认输入框为空且这一轮已结束——草稿里有你写的内容时绝不替你按发送。审核本身消耗一轮对话（计入 token 用量）。"
     };
     var en = {
       nav: "AI Change Review",
@@ -214,7 +264,9 @@ window.__ModuleLoader__.load({
       now: "Review current conversation now",
       nowDone: "Review request sent",
       nowFail: "No fresh changes or no conversation open",
-      note: "Auto mode fires 20s after changes settle, at most once every 10 minutes; each review costs one model turn."
+      nowBlocked: "The composer still has content, or this turn is running — send/clear it and wait for idle before reviewing manually (pending changes are kept)",
+      nowUnknown: "Composer state unavailable; stood down (your draft is not overwritten)",
+      note: "Auto mode fires 20s after changes settle, at most once every 10 minutes, and only once the composer is empty and the turn has finished — it never overwrites what you are typing. Each review costs one model turn."
     };
 
     var CSS = ".__cr_root{max-width:640px;display:flex;flex-direction:column;gap:12px}" +
@@ -275,12 +327,16 @@ window.__ModuleLoader__.load({
             onClick: function () {
               var sid = currentId;
               var cap = sid && sessions.get(sid);
-              if (cap && cap.inputActions && cap.pendingChanges && cap.pendingChanges.length > 0) {
-                if (fireReview(sid)) setMsg({ ok: true, text: t("nowDone") });
-                else setMsg({ ok: false, text: t("nowFail") });
-              } else {
+              if (!cap || !cap.inputActions || !cap.pendingChanges || cap.pendingChanges.length === 0) {
                 setMsg({ ok: false, text: t("nowFail") });
+                return;
               }
+              var status = fireReview(sid);
+              if (status === "fired") setMsg({ ok: true, text: t("nowDone") });
+              else if ((cap.gate || "unknown") === "unknown") {
+                warnUnknown();
+                setMsg({ ok: false, text: t("nowUnknown") });
+              } else setMsg({ ok: false, text: t("nowBlocked") });
             }
           }, t("now")),
           msg ? h("span", { className: msg.ok ? "__cr_ok" : "__cr_err" }, msg.text) : null
@@ -319,6 +375,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject;
     exports.__internals = {
       loadConfig: loadConfig,
+      composerGate: composerGate,
       sanitizeConfig: function (c) { return { mode: c.mode === "off" || c.mode === "auto" ? c.mode : "manual" }; },
       buildReviewPrompt: buildReviewPrompt,
       lineCount: lineCount

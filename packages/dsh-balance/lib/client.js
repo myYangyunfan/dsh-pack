@@ -482,9 +482,19 @@ window.__ModuleLoader__.load({
 			return data;
 		}
 
-		function BalanceDock({ useProjection, sessionId }) {
+		function BalanceDock({ useProjection, sessionId, useSettings }) {
 			const usage = typeof useProjection === "function" ? useProjection("tokenUsage") : void 0;
 			const data = useBalanceData();
+			// 显隐以「条目设置」为准，而不是只认载荷里的 disabled 位：宿主后台 180s 才真发
+			// 一次、客户端 60s 才读一次，且没有任何「设置变了就重推」的订阅——只认载荷的
+			// 话，用户在设置里关掉后 dock 最长还能挂约 3 分钟；冷启首轮刷新又抢在
+			// settings 服务就绪之前（2026-10-16 隔离实机实测：第一发 /state 是未 disabled
+			// 的载荷），该隐藏的会闪一下。这里与设置行共用同一个 scope，所以拨开关即时生效。
+			// status 为 loading / missing（还没读到）时按默认「显示」走，与「读不到不隐藏」
+			// 的宿主侧口径一致。
+			const settingsSnap = typeof useSettings === "function" ? useSettings((s) => s) : null;
+			if (settingsSnap && settingsSnap.status === "ready" && settingsSnap.value
+				&& settingsSnap.value.showBalanceDock === false) return null;
 			// 用户关闭「显示余额/本轮费用」时整个 dock 隐藏；等待首次推送期间也不闪现。
 			if (data && (data.disabled === true || data.loading === true)) return null;
 			const balances = data && Array.isArray(data.balances) ? data.balances : [];
@@ -603,6 +613,131 @@ window.__ModuleLoader__.load({
 			return lines.join("\n");
 		}
 
+		// ------------------------------------------------------------------
+		// 设置-通用：余额 dock 两条开关（2026-10-16，接住退役掉的壳层 ⋯ 菜单）
+		//
+		// 内核**没有**「按 Config 自动生成设置页」这回事：autoGenerate 只活在
+		// dsh-settings 与 wire schema 里，全仓客户端包 0 个消费方；设置导航的每一项
+		// 都是客户端包自己往 settings.section / settings.general.item 显式注册的。
+		// 所以宿主半声明 Config 只解决「describe() 里有没有这一行」，页面上的开关
+		// 必须由本文件注册——只声明不注册的结果是开关无处可拨，与退役掉的壳层 ⋯
+		// 菜单相比反而是净退化。口径对齐同仓已验证的 dsh-conversation-tweaks。
+		//
+		// ⚠ ns 是 profile 条目 id（cordis.patch.yml 的 `- id:`，本包为 "balance"，
+		//   稳定契约见同包 cordis.patch.yml 头部注释），不是包名 dsh-balance。
+		// ------------------------------------------------------------------
+		const ENTRY_ID = "balance";
+
+		const SETTINGS_TEXT = {
+			dockTitle: "显示余额与本轮费用",
+			dockDesc: "在对话底部统计栏显示 DeepSeek 账户余额与本轮估算费用，关闭则整条隐藏。",
+			dockOn: "已显示",
+			dockOff: "已隐藏",
+			goTitle: "显示 OpenCode Go 额度",
+			goDesc: "在余额栏内追加显示 OpenCode Go 订阅额度（5 小时 / 周 / 月）。需先开启上一项。",
+			goOn: "已显示",
+			goOff: "已隐藏"
+		};
+
+		/**
+		 * 把 ctx.remote.settings 收成这一对开关用的 scope 形状（getSnapshot /
+		 * subscribe / set）。内核不把「设置已变」桥接给页内（只有 settings/conflict
+		 * 与 settings/rejected 两个错误事件），所以实时性只做到：挂载时取一次 +
+		 * 自己写完后按返回值续用。快照引用必须稳定——selector 走 Object.is 比较，
+		 * 每轮换新对象会自激重渲染。
+		 */
+		function bindSettingsScope(ctx, entryId) {
+			let snapshot = { status: "loading", value: undefined, writable: false, revision: undefined };
+			const listeners = new Set();
+			const emit = () => { for (const fn of [...listeners]) fn(); };
+			const adopt = (next) => {
+				if (JSON.stringify(next.value) === JSON.stringify(snapshot.value)
+					&& next.status === snapshot.status && next.writable === snapshot.writable) return;
+				snapshot = next;
+				emit();
+			};
+			async function refresh() {
+				let response;
+				try {
+					response = await ctx.remote.settings.describe();
+				} catch {
+					adopt({ ...snapshot, status: "failed" });
+					return;
+				}
+				if (!response || !response.ok) {
+					adopt({ ...snapshot, status: "failed" });
+					return;
+				}
+				const rows = response.value && Array.isArray(response.value.namespaces) ? response.value.namespaces : [];
+				const view = rows.find((row) => row.ns === entryId);
+				if (view === undefined) {
+					// 条目没进 describe() = 它的 Config 没有 volatile 字段，内核不为它生成表单。
+					adopt({ ...snapshot, status: "missing" });
+					return;
+				}
+				adopt({
+					status: "ready",
+					value: view.value,
+					writable: response.value.writable !== false,
+					revision: view.revision
+				});
+			}
+			void refresh();
+			return {
+				getSnapshot: () => snapshot,
+				subscribe(fn) {
+					listeners.add(fn);
+					return () => { listeners.delete(fn); };
+				},
+				async set(field, value) {
+					const next = await ctx.remote.settings.mutate(entryId, [{ op: "set", path: [field], value }], snapshot.revision);
+					if (next && next.ok && next.value) {
+						adopt({ ...snapshot, value: next.value.value, revision: next.value.revision });
+						return;
+					}
+					await refresh();
+					if (!next || !next.ok) throw new Error((next && next.error && next.error.message) || "settings write rejected");
+				}
+			};
+		}
+
+		/** 把 scope 绑成 hook 形态：整快照引用稳定，selector 每渲染求值即可。 */
+		function bindScopeSelector(scope) {
+			return (selector) => selector(react.useSyncExternalStore(scope.subscribe, scope.getSnapshot));
+		}
+
+		function SwitchRow({ useScope, scope, field, title, desc, onLabel, offLabel, dependsOn }) {
+			const snap = useScope((s) => s);
+			const ready = snap && snap.status === "ready";
+			const checked = !!(ready && snap.value && snap.value[field] === true);
+			// 上一项关掉时本项无可见效果，按钮置灰而不是留着让人以为坏了。
+			const gated = dependsOn === void 0 ? false : !(ready && snap.value && snap.value[dependsOn] === true);
+			const off = gated || !ready || !snap.writable;
+			return react_jsx_runtime.jsxs("div", {
+				className: "dbal-row",
+				children: [
+					react_jsx_runtime.jsxs("div", {
+						className: "dbal-rowText",
+						children: [
+							react_jsx_runtime.jsx("div", { className: "dbal-title", children: title }),
+							react_jsx_runtime.jsx("div", { className: "dbal-desc", children: desc })
+						]
+					}),
+					react_jsx_runtime.jsx("button", {
+						type: "button",
+						role: "switch",
+						"aria-checked": checked,
+						"aria-label": title,
+						title: checked ? onLabel : offLabel,
+						className: "dbal-switch",
+						disabled: off,
+						onClick: () => { scope.set(field, !checked).catch(() => {}); },
+						children: react_jsx_runtime.jsx("span", { className: "dbal-knob" })
+					})
+				]
+			});
+		}
+
 		const CSS = [
 			".dsh-balance-wrap{display:inline-flex;align-items:center;gap:4px}",
 			".dsh-balance-dock{display:inline-flex;align-items:center;box-sizing:border-box;",
@@ -612,15 +747,25 @@ window.__ModuleLoader__.load({
 			"transition:color .15s,border-color .15s}",
 			".dsh-balance-dock:hover{color:var(--dsw-alias-label-secondary);border-color:var(--dsw-alias-border-l2)}",
 			".dsh-balance-peak{color:#e8590c;font-weight:600}",
-			".dsh-balance-offpeak{color:#2f9e44}"
+			".dsh-balance-offpeak{color:#2f9e44}",
+			// 通用设置两行（对齐 dsh-conversation-tweaks 的视觉口径，走 --dsw 令牌）
+			".dbal-row{border-bottom:1px solid var(--dsw-alias-border-l2);align-items:center;gap:8px;padding:16px 0;display:flex}",
+			".dbal-rowText{flex-direction:column;flex:1;gap:4px;min-width:0;padding-right:48px;display:flex}",
+			".dbal-title{color:var(--dsw-alias-label-primary);font-size:14px;font-weight:400;line-height:22px}",
+			".dbal-desc{color:var(--dsw-alias-label-tertiary);font-size:12px;font-weight:400;line-height:18px}",
+			".dbal-switch{width:44px;height:26px;background:var(--dsw-alias-interactive-bg-hover);cursor:pointer;border:none;border-radius:999px;flex:none;position:relative;transition:background .15s}",
+			".dbal-switch[aria-checked=true]{background:var(--dsw-alias-state-business-primary)}",
+			".dbal-switch:disabled{opacity:.5;cursor:default}",
+			".dbal-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .15s}",
+			".dbal-switch[aria-checked=true] .dbal-knob{transform:translateX(18px)}"
 		].join("");
 
-		const TAG = "@deepseek-ai/dsh-balance/client.css";
+		const TAG = "@dsh-pack/dsh-balance/client.css";
 		function ensureCss() {
 			if (typeof document === "undefined") return;
 			if (document.querySelector("style[data-plugin-css=" + JSON.stringify(TAG) + "]")) return;
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "@deepseek-ai/dsh-balance";
+			tag.dataset.plugin = "@dsh-pack/dsh-balance";
 			tag.dataset.pluginCss = TAG;
 			tag.textContent = CSS;
 			document.head.appendChild(tag);
@@ -640,6 +785,13 @@ window.__ModuleLoader__.load({
 			// inject 把注册推迟到父 entry 就绪后派发，消除冷缓存首启竞态。
 			// TA4：旧宿主（rc.7- 形态）slots kit 无 inject 时降级直 register
 			//（可能撞 conversation 未声明竞态，但优于整插件 TypeError 加载失败）。
+			// 条目设置 scope：既是「设置 → 通用」两条开关的读写面，也是 dock 的显隐判据
+			// （见 BalanceDock 头部注释）。必须先于两处注册创建——slot 的 inject 回调
+			// 可能在同一个 tick 内被同步调用，晚声明会撞 TDZ。
+			// 同一 scope 供三处共用：读的是同一条目，各取一次 describe() 只会多轮请求。
+			const scope = bindSettingsScope(ctx, ENTRY_ID);
+			const useScope = bindScopeSelector(scope);
+
 			ctx.effect(() => {
 				if (typeof ctx.slots.inject === "function") {
 					ctx.slots.inject(
@@ -647,7 +799,8 @@ window.__ModuleLoader__.load({
 						() => ctx.slots.register({
 							name: "conversation.composer.dock",
 							id: "balance",
-							order: 100
+							order: 100,
+							inject: () => ({ useSettings: useScope })
 						}, BalanceDock),
 						"dsh-balance: composer dock entry"
 					);
@@ -655,14 +808,44 @@ window.__ModuleLoader__.load({
 					ctx.slots.register({
 						name: "conversation.composer.dock",
 						id: "balance",
-						order: 100
+						order: 100,
+						inject: () => ({ useSettings: useScope })
 					}, BalanceDock);
+				}
+			});
+
+			// 「设置 → 通用」的两条开关（上面注释：页面必须自己注册，内核不会自动生成）。
+			const rowOptions = (id, order, field, title, desc, onLabel, offLabel, dependsOn) => ({
+				name: "settings.general.item",
+				id,
+				order,
+				inject: () => ({ useScope, scope, field, title, desc, onLabel, offLabel, dependsOn })
+			});
+			ctx.effect(() => {
+				if (typeof ctx.slots.inject === "function") {
+					ctx.slots.inject(
+						"settings.general.item",
+						() => ctx.slots.register(rowOptions("balance-dock", 30, "showBalanceDock",
+							SETTINGS_TEXT.dockTitle, SETTINGS_TEXT.dockDesc, SETTINGS_TEXT.dockOn, SETTINGS_TEXT.dockOff), SwitchRow),
+						"dsh-balance: balance dock setting row"
+					);
+					ctx.slots.inject(
+						"settings.general.item",
+						() => ctx.slots.register(rowOptions("balance-opencode-go", 31, "showOpenCodeGoUsage",
+							SETTINGS_TEXT.goTitle, SETTINGS_TEXT.goDesc, SETTINGS_TEXT.goOn, SETTINGS_TEXT.goOff, "showBalanceDock"), SwitchRow),
+						"dsh-balance: opencode go setting row"
+					);
+				} else {
+					ctx.slots.register(rowOptions("balance-dock", 30, "showBalanceDock",
+						SETTINGS_TEXT.dockTitle, SETTINGS_TEXT.dockDesc, SETTINGS_TEXT.dockOn, SETTINGS_TEXT.dockOff), SwitchRow);
+					ctx.slots.register(rowOptions("balance-opencode-go", 31, "showOpenCodeGoUsage",
+						SETTINGS_TEXT.goTitle, SETTINGS_TEXT.goDesc, SETTINGS_TEXT.goOn, SETTINGS_TEXT.goOff, "showBalanceDock"), SwitchRow);
 				}
 			});
 		}
 
 		exports.apply = apply;
-		exports.inject = ["slots"];
+		exports.inject = ["slots", "remote", "remote.settings"];
 		// 纯函数与宿主通道原语暴露给单测（不触发 DOM / React 副作用），口径对齐
 		// dsh-client-file-changes 的同名惯例。
 		exports.__internals = {
@@ -703,6 +886,12 @@ window.__ModuleLoader__.load({
 			LEDGER_VERSION,
 			LEDGER_EPHEMERAL,
 			TIER_UNKNOWN,
+			// 设置页（通用设置两行）：适配器与文案暴露给单测，口径对齐宿主半 Config
+			bindSettingsScope,
+			bindScopeSelector,
+			SwitchRow,
+			ENTRY_ID,
+			SETTINGS_TEXT,
 		};
 		return module.exports;
 	}

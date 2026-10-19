@@ -2,6 +2,10 @@
 # 语义（实证自 dsh-app-boot applyEntryPatches）：新建条目必须用 `insert:`（覆盖式 {id,name} 仅对
 # 已存在条目生效，否则 "patch: entry not found" 跳过）；name 被 loader 用作 tree.import 的包名
 # （entry.options.name = 图行 id = bundle 必须注册的 load id），id 为 fiber/入口标识。
+#
+# 本目录是 DSH Desktop 随包内置的 vendored 版本（源码 Y1X1n/dsh-prompt-optimizer 0.6.1），
+# 包名与 loader id 保持本仓原有的 dsh-prompt-optimizer / prompt-optimizer 不变，
+# 这样老 profile 里的同名安装会被新版本原地覆盖，不会与新包名形成双挂载。
 - insert:
     - id: prompt-optimizer
       name: '@dsh-pack/dsh-prompt-optimizer'

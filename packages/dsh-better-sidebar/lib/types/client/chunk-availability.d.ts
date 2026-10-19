@@ -5,8 +5,8 @@
  * (scheduler / probe / load all replaceable) so the retry policy is unit
  * testable without a DOM, network, or the kernel client runtime
  * (dsh-desktop/scripts/test/unit-better-sidebar-chunk-retry.test.js runs
- * this against lib/chunk-availability.js, the compiled mirror of this
- * file, with node --test).
+ * this against the //#region src/client/chunk-availability.ts section of
+ * the shipped lib/client.js, with node --test + vm).
  *
  * Background (0.5.0 user report): while the kernel process dies/restarts,
  * `window.__DSH_MODULES__` is briefly missing, so a lazy chunk load threw
@@ -48,12 +48,6 @@ export interface GlobalLike {
  * global stays a fallback for rc.7-era hosts and the test harness.
  */
 export declare function isModuleSystemAvailable(globalLike?: unknown): boolean;
-/**
- * Whether a chunk script already executed and registered its factory on
- * the plugin-owned `__dshChunks__` registry (true → a retry only needs
- * the externals require, not a re-fetch).
- */
-export declare function isChunkRegistered(globalLike: unknown, name: string): boolean;
 /** Shared error copy for the unavailable case (load + tests assert this). */
 export declare function moduleSystemUnavailableMessage(chunk: string): string;
 /** Event a retry loop emits to its subscribers (the mounted lazy views). */

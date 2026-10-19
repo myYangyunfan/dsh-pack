@@ -1,11 +1,15 @@
 {
   "id": "@dsh-external/dsh-vision",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "main": "./lib/index.js",
   "description": "Vision for text-only DeepSeek: a view_image tool that answers questions about images via any OpenAI-compatible VLM endpoint",
-  "engines": { "dsh": ">=0.0.1" },
+  "engines": {
+    "dsh": ">=0.0.1"
+  },
   "contributes": {
-    "tools": ["view_image"],
+    "tools": [
+      "view_image"
+    ],
     "skills": []
   }
 }
