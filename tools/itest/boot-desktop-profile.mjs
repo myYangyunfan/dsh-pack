@@ -235,6 +235,22 @@ function sh(cmd, cmdArgs, opts = {}) {
 function winPath(p) {
   return p.replace(/\\/g, '/');
 }
+/**
+ * 列一个 tarball 的条目。
+ *
+ * `--force-local` 是 **GNU tar** 专有旗标（不让它把 `C:/...` 里的 `C:` 当远程主机名去解析，
+ * 否则报 `Cannot connect to C: resolve failed`）；Windows 上 PATH 里的 tar 是 **bsdtar**，
+ * 它直接拒收这个旗标 —— 无条件传它会让 J2 在 windows runner 上对**每个包**都报
+ * `Option --force-local is not supported`，整条产物审计全红（2026-10-19 CI 实测）。
+ * bsdtar 本来就不需要这个旗标，所以先按 GNU 试，命中那句报错就退回不带旗标的一次。
+ * 与 tools/itest/pack-audit.mjs 的 listTarball 同一套姿势。
+ */
+function listTarball(tgz) {
+  const primary = sh('tar', ['--force-local', '-tzf', tgz]);
+  if (primary.status === 0) return primary;
+  if (!/--force-local/i.test(`${primary.stderr || ''}${primary.stdout || ''}`)) return primary;
+  return sh('tar', ['-tzf', tgz]);
+}
 // Windows 上 npm 是 npm.cmd，spawnSync 不带 shell 解析不到、且**不会报错只会给空输出**
 // （第一次跑 J2 就是这样静默失败了 2 个包）。必须显式走 shell。
 function packTo(cwd, dest) {
@@ -329,9 +345,8 @@ if (job.includes('j2')) {
   // 产物内容审计：files 白名单没写对的包在这里露出来
   let contentBad = 0;
   for (const p of packed) {
-    // --force-local：git-bash 的 GNU tar 会把 "C:/..." 里的 C: 当成远程主机名去解析，
-    // 报 "Cannot connect to C: resolve failed"。Windows 上必须显式告诉它这是本地路径。
-    const listing = sh('tar', ['--force-local', '-tzf', p.tarball]);
+    // 列条目走 listTarball：旗标给不给要按 tar 的实现来（见它上面的注释）
+    const listing = listTarball(p.tarball);
     if (listing.status !== 0) {
       contentBad += 1;
       console.log(`  FAIL tar -tzf ${p.dir}: ${(listing.stderr || '').trim()}`);
