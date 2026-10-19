@@ -14,7 +14,7 @@
 //
 // 用法：node tools/itest/boot-desktop-profile.mjs [--job=j1] [--keep]
 
-import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +78,16 @@ const keep = args.includes('--keep');
 
 const ROOT = packRoot();
 const BIN = kernelBin();
+
+// 报错文案里要能看出是哪一代内核的行为（0.2.0-rc.1 不提构建脚本，0.2.1-rc.2 会拦），
+// 否则同一个断言在两边一红一绿时没人能一眼归因。
+function kernelVersionOf() {
+  try {
+    return JSON.parse(readFileSync(join(BIN, '..', '..', 'package.json'), 'utf8')).version || '(未知)';
+  } catch {
+    return '(未知)';
+  }
+}
 const HOME = mkdtempSync(join(tmpdir(), 'dsh-itest-'));
 assertIsolated(HOME);
 
@@ -93,6 +103,25 @@ const failures = [];
 function expect(ok, label, detail = '') {
   if (!ok) failures.push(`${label}${detail ? ' — ' + detail : ''}`);
   console.log(`${ok ? '  ok  ' : '  FAIL'} ${label}${ok || !detail ? '' : '\n         ' + detail}`);
+}
+
+// 内核的 plugin 命令把 pnpm 的真实失败写进 profile 的诊断日志，stdout/stderr 只留一行
+// `dsh: plugin command failed; diagnostics: …`。所以判据不能只看 CLI 输出（实测：本机
+// 0.2.1-rc.2 的 J2 元包失败里，「is not in the npm registry」那行压根不在 stdout）。
+// 取该 profile 最近一次 operation 的 pnpm.log 拼进证据文本。
+function latestOperationLog(profile) {
+  const dir = join(HOME, 'profiles', profile, '.plugin-manager', 'logs');
+  if (!existsSync(dir)) return '';
+  const ops = readdirSync(dir)
+    .map((d) => join(dir, d, 'pnpm.log'))
+    .filter((f) => existsSync(f));
+  if (!ops.length) return '';
+  ops.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  try {
+    return readFileSync(ops[0], 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 console.log(`插件根: ${ROOT.replace(REPO, '.')}`);
@@ -243,17 +272,21 @@ function addWithBuildApproval(profile, tarball) {
       else writeFileSync(file.path, file.text);
     }
   };
+  let gated = false;
+  let gateOut = '';
   for (let round = 0; ; round += 1) {
     const r = dsh('plugin', '--profile', profile, 'add', tarball);
     const out = (r.stdout || '') + (r.stderr || '');
-    if (r.status === 0 || round >= 3) return { status: r.status, out };
-    if (!/ERR_PNPM_IGNORED_BUILDS|Ignored build scripts|pendingBuilds/i.test(out)) return { status: r.status, out };
+    if (r.status === 0 || round >= 3) return { status: r.status, out, gated, gateOut };
+    if (!/ERR_PNPM_IGNORED_BUILDS|Ignored build scripts|pendingBuilds/i.test(out)) return { status: r.status, out, gated, gateOut };
     const wsFile = join(dir, 'pnpm-workspace.yaml');
-    if (!existsSync(wsFile)) return { status: r.status, out };
+    if (!existsSync(wsFile)) return { status: r.status, out, gated, gateOut };
     const before = readFileSync(wsFile, 'utf8');
     const approved = before.replace(/set this to true or false/g, 'true');
-    if (approved === before) return { status: r.status, out };
+    if (approved === before) return { status: r.status, out, gated, gateOut };
     writeFileSync(wsFile, approved);
+    gated = true;
+    gateOut = out;
     rollback();
     console.log('  [approve] 回滚 manifest + 放行构建脚本后重试（= 插件页「Allow these scripts and retry」）');
   }
@@ -321,15 +354,34 @@ if (job.includes('j2')) {
   const PROFILE = 'itest2';
   // 两类包两条判据（不是给谁开后门，是判据本该按语义分类）：
   //   · 成员包：依赖里没有 @dsh-pack/* ⇒ 离线安装不碰 registry，判据严格（必装必挂）。
-  //   · 元包：依赖就是 @dsh-pack/* 的**未发布版本** ⇒ 离线物理上装不上。实测 pnpm 的
-  //     原话：`The latest release of @dsh-pack/dsh-auto-compact is "0.1.0"`（元包要 ^0.1.1）。
-  //     所以对它要求「要么装成功，要么失败原因就是这个」——别的错（patch/manifest/构建门禁）
-  //     一律红；版本一旦发布（或用本地 registry）就自动变成硬要求。
+  //   · 元包：依赖就是 @dsh-pack/* 的**未发布版本** ⇒ 离线物理上装不上。pnpm 的原话有三套
+  //     （见下面 unpublishedDepFailure），所以对它要求「要么装成功，要么失败原因就是这个」
+  //     ——别的错（patch/manifest/构建门禁）一律红；版本一旦发布（或用本地 registry）就自动
+  //     变成硬要求。
   //     元包真正的安装语义（一个输入装齐一层）只在 registry 上验得到，用户侧两条通道见
   //     docs/install-from-tarballs.md；它的离线可验部分（依赖表 ↔ 成员）由 self-mount 门禁把守。
   const needsRegistry = (p) => (p.deps || []).some((d) => d.startsWith('@dsh-pack/'));
   const memberPacks = packed.filter((p) => !needsRegistry(p));
   const metaPacks = packed.filter(needsRegistry);
+
+  // pnpm 对「这个包名在 registry 上不存在」在不同版本有三套原话，都实测出现过：
+  //   · The latest release of @dsh-pack/x is "0.1.0"（同名包在，版本对不上）
+  //   · No matching version found / ERR_PNPM_NO_MATCHING_VERSION
+  //   · @dsh-pack/x is not in the npm registry, or you have no permission to fetch it.
+  //     —— pnpm 11.7 走这条（2026-10-19 CI 实测：J2 的元包就是这么失败的）
+  // pnpm 对「这个包名在 registry 上不存在」在不同版本有三套原话，都实测出现过：
+  //   · The latest release of @dsh-pack/x is "0.1.0"（同名包在，版本对不上）
+  //   · No matching version found / ERR_PNPM_NO_MATCHING_VERSION
+  //   · @dsh-pack/x is not in the npm registry, or you have no permission to fetch it.
+  //     —— pnpm 11.7 走这条（2026-10-19 实测：CI 与本机 J2 的元包都是这么失败的）
+  // 只认「那一行同时点到 @dsh-pack 依赖与取不到这一类措辞」的那一类：外部依赖或内核包的
+  // 404 不算，那正是我们要让 J2 变红的情形。命中时返回那一行原文，既当判据也当打印的理由。
+  const NOT_ON_REGISTRY = /is not in the npm registry|No matching version found|ERR_PNPM_NO_MATCHING_VERSION|ERR_PNPM_FETCH_404|latest release of @dsh-pack/i;
+  function unpublishedDepLine(text) {
+    const line = text.split('\n').find((l) => /@dsh-pack\/[\w.-]+/.test(l) && NOT_ON_REGISTRY.test(l));
+    return line ? line.trim() : null;
+  }
+  const unpublishedDepFailure = (text) => Boolean(unpublishedDepLine(text));
 
   let installed = 0;
   for (const p of memberPacks) {
@@ -346,12 +398,13 @@ if (job.includes('j2')) {
   const metaWrong = [];
   for (const p of metaPacks) {
     const r = addWithBuildApproval(PROFILE, winPath(p.tarball));
+    const evidence = `${r.out}\n${latestOperationLog(PROFILE)}`;
     const tail = r.out.split('\n').filter(Boolean).slice(-3).join(' | ');
     if (r.status === 0) {
       console.log(`  元包 ${p.dir}：registry 上有全部依赖版本，装成功（含「一个输入装齐一层」的组合）`);
-    } else if (/latest release of @dsh-pack\/|No matching version found|ERR_PNPM_NO_MATCHING_VERSION/i.test(r.out)) {
+    } else if (unpublishedDepFailure(evidence)) {
       console.log(`  元包 ${p.dir}：依赖版本未发布，离线装不上（预期；离线替代路径=装成员 tarball）`);
-      console.log(`         ${tail}`);
+      console.log(`         ${unpublishedDepLine(evidence) || tail}`);
     } else {
       metaWrong.push(`${p.dir}: ${tail}`);
     }
@@ -380,10 +433,13 @@ if (job.includes('j2')) {
   }
 }
 
-// ---------- J3：pnpm 11 构建脚本放行的真实流程 ----------
-// 目的不是验证「能不能装原生包」，而是**钉住文档**：knowledge 层 README 写了要点
-// 「Allow these scripts and retry」。哪天失败文案变了、或不再需要放行，这个断言会红，
-// 就是在提醒文档该更新了。
+// ---------- J3：带原生依赖的包在内核 + pnpm 下的装配安全性 ----------
+// 现成员集合**没有**任何 install 脚本，所以这里测的不是「我们自己会不会弹放行」，
+// 而是「哪天有成员带进原生依赖时，装配会不会被搞坏」：拦下就要能按 UI 那一步放行后装成，
+// 没拦就要一次装成，两种形态最后都必须 --dump-config 退 0 且行挂进树。
+// 为什么不再断言「必须拦得到」：同一份夹具在内核 0.2.0-rc.1 上直接装完、不提构建脚本，
+// 在 0.2.1-rc.2 上会被拦并写 allowBuilds 占位（两处 2026-10-19 各自实测）。
+// 放行文案与恢复步骤的用户侧文档已随成员集合收缩一并从 README/recovery.md 删掉了。
 if (job.includes('j3')) {
   console.log('\n########## J3：构建脚本放行（pendingBuilds → allowBuilds） ##########');
   const FIX = join(HOME, 'fixture-native');
@@ -417,30 +473,26 @@ if (job.includes('j3')) {
   if (!fixFile) {
     console.log('  → fixture 没打成 tarball，跳过 J3 后续断言');
   } else {
-  const first = dsh('plugin', '--profile', PROFILE, 'add', winPath(join(T3, fixFile)));
-  const firstOut = (first.stdout || '') + (first.stderr || '');
-  const blocked = /pendingBuilds|ignored[_ -]?builds|Allow these scripts|approve-builds|build scripts/i.test(firstOut);
-  expect(blocked, '首次安装被 pnpm 构建脚本门禁拦住（夹具原生依赖生效）',
-    blocked ? '' : `实际输出尾部: ${firstOut.split('\n').filter(Boolean).slice(-4).join(' | ')}`);
-  if (blocked) {
-    expect(/@photostructure\/sqlite/.test(firstOut), '失败信息里点名 @photostructure/sqlite');
-    // pnpm 拦下构建脚本时，会在 profile 的 pnpm-workspace.yaml 里写一个**占位**条目：
-    //   allowBuilds:
-    //     '@photostructure/sqlite': set this to true or false
-    // 「Allow these scripts and retry」这个按钮做的事就是把那行占位值就地改成 true。
-    // 早期实现是往文件尾部**再追加**一个 allowBuilds: 键 —— YAML 直接重复键报错，
-    // pnpm add 失败。必须就地替换占位值，才是对用户动作的忠实模拟。
-    const wsFile = join(HOME, 'profiles', PROFILE, 'pnpm-workspace.yaml');
-    if (existsSync(wsFile)) {
-      const before = readFileSync(wsFile, 'utf8');
-      const approved = before.replace(/set this to true or false/g, 'true');
-      expect(approved !== before, '占位值 set this to true or false 存在（UI 就是改这一行）');
-      writeFileSync(wsFile, approved);
-    }
-    const retry = dsh('plugin', '--profile', PROFILE, 'add', winPath(join(T3, fixFile)));
-    expect(retry.status === 0, '放行后重试安装成功',
-      ((retry.stdout || '') + (retry.stderr || '')).split('\n').filter(Boolean).slice(-4).join(' | '));
+  const tailOf = (s) => s.split('\n').filter(Boolean).slice(-4).join(' | ');
+  const FIX_TARBALL = winPath(join(T3, fixFile));
+  // 走 J1/J2 同一个 addWithBuildApproval：它按「插件页那个按钮」的真实动作序列做事
+  // （装 → 被拦则就地把 allowBuilds 占位改成 true → 回滚 package.json/pnpm-lock → 重试）。
+  // 为什么不各写一支：CLI 这条路在构建门禁失败时**不回滚** manifest，于是重试时
+  // reconcile 看不到「新增依赖」，bundle 永远不登记 —— 装上了却挂不上（本文件上面那段
+  // 注释记的就是这个坑）。手写「改 allowBuilds + 直接 add」的简化版会把它复现成假失败。
+  // 两种内核形态都合法且都实测过（2026-10-19）：0.2.1-rc.2 + pnpm 11.7 会拦并写占位条目
+  // （本机），0.2.0-rc.1 直接装完、不提构建脚本（CI）。所以判据不要求「必须拦得到」，
+  // 只要求**走到同一个终点**：装上、profile 能用、行挂进树。
+  const r3 = addWithBuildApproval(PROFILE, FIX_TARBALL);
+  console.log(`  构建门禁形态：${r3.gated ? '拦下后放行重试' : '未拦，一次装完'}（内核 ${kernelVersionOf()}）`);
+  if (r3.gated) {
+    expect(/@photostructure\/sqlite/.test(r3.gateOut || ''), '被拦时，失败信息里点名 @photostructure/sqlite');
   }
+  expect(r3.status === 0, '带原生依赖的夹具最终安装成功', tailOf(r3.out));
+  const dump3 = dsh('--profile', PROFILE, '--dump-config');
+  expect(dump3.status === 0, 'J3 profile 的 --dump-config 退出 0（两种放行形态都不许砖装配）',
+    tailOf((dump3.stdout || '') + (dump3.stderr || '')));
+  expect(/itest-native/.test(dump3.stdout || ''), '夹具的 loader 行挂进最终树');
   }
 }
 

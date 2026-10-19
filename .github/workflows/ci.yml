@@ -116,7 +116,7 @@ jobs:
           DSH_KERNEL_BIN: ${{ runner.temp }}/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js
 
   itest-builds:
-    name: 集成 J3（pnpm 构建脚本放行流程）
+    name: 集成 J3（原生依赖包的装配安全性）
     needs: [static]
     runs-on: windows-latest
     steps:
@@ -134,7 +134,7 @@ jobs:
           npm i --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/kernel" \
             "@deepseek-ai/dsh@$(node -p "require('./tools/audit/dsh-runtime.json').runtimeVersion")"
         shell: bash
-      - name: J3 断言 pendingBuilds 文案与 allowBuilds 恢复
+      - name: J3 夹具原生依赖在两种内核形态下都不许砖装配
         run: node tools/itest/boot-desktop-profile.mjs --job=j3
         env:
           DSH_KERNEL_BIN: ${{ runner.temp }}/kernel/node_modules/@deepseek-ai/dsh/lib/bin.js
