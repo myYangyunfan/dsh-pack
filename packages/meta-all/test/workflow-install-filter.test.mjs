@@ -20,6 +20,9 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const WORKFLOWS = resolve(here, '..', '..', '..', '.github', 'workflows');
 const REQUIRED = `--filter '!@dsh-pack/all'`;
+// 进门先归一行尾：PACK 没有 .gitattributes，工作树是 CRLF，而本仓里带 \n 字面量的
+// 变异/匹配一律静默空转（变异体等于原件，用例报绿却什么都没证）。
+const toLF = (s) => s.replace(/\r\n/g, '\n');
 
 /** 纯判据：返回缺 filter 的 install **命令行**（行号 + 原文）。
  *  只认 `run:` / `install:` 开头的执行行——散文注释里出现「pnpm install」不算接线，
@@ -38,7 +41,7 @@ function workflowTexts() {
   const out = [];
   for (const name of readdirSync(WORKFLOWS).sort()) {
     if (!/\.ya?ml$/.test(name)) continue;
-    out.push({ name, text: readFileSync(join(WORKFLOWS, name), 'utf8') });
+    out.push({ name, text: toLF(readFileSync(join(WORKFLOWS, name), 'utf8')) });
   }
   return out;
 }
@@ -63,7 +66,7 @@ function installLinesWithFilter(text) {
 }
 
 test('反证：抹掉一处 filter 必须报出那一行（漏接线就是 CI 红）', () => {
-  const text = readFileSync(join(WORKFLOWS, 'ci.yml'), 'utf8');
+  const text = toLF(readFileSync(join(WORKFLOWS, 'ci.yml'), 'utf8'));
   assert.deepEqual(installLinesMissingFilter(text), []);
   // 只改**命令行**上的 filter。第一版这里写的是 text.replace(REQUIRED,'')，
   // 结果被删的是上面那行注释里的字面量，两条命令都还在 ⇒ 变异体等于原件、反证空转。
@@ -82,4 +85,46 @@ test('反证：判据认的是行，不是整篇文本——注释里提到 filt
   const bad = installLinesMissingFilter(sample);
   assert.equal(bad.length, 1);
   assert.equal(bad[0].line, 2);
+});
+
+// 第二件事：跑 boot-desktop-profile（J1/J2/J3）的 job 必须先装 pnpm。
+// 起因（2026-10-19 CI 实测）：itest / itest-builds 两个 job 只有 actions/setup-node，
+// 而内核的 `dsh plugin add` 是 shell 出去调 pnpm 的，J1 第一步就报
+// 'pnpm' is not recognized as an internal or external command。这两个 job 此前从没跑到过
+// （install 阶段先红），所以这个洞一直藏着 —— 靠人记「哪个 job 需要 pnpm」是靠不住的。
+//
+// 判据为什么盯 boot-desktop-profile.mjs 而不是「body 里出现 pnpm」：itest 那个 job 的步骤里
+// 除了 pnpm/action-setup 本身，根本没有第二个字面量 pnpm（YAML 注释会被解析器剥掉）。
+// 写成「提到 pnpm 就得装 pnpm」的话，删掉 setup 之后那个 job 直接掉出名单，断言拿到空数组、
+// 以为一切正常 —— 这条规则的成因恰恰是它自己会漏掉的那个洞，所以按「跑什么脚本」判定。
+const YAML = await import('yaml');
+
+function itestJobs(ymlText) {
+  const doc = YAML.parse(ymlText);
+  const jobs = doc && doc.jobs ? doc.jobs : {};
+  return Object.entries(jobs)
+    .map(([id, job]) => {
+      const steps = Array.isArray(job && job.steps) ? job.steps : [];
+      const runsHarness = steps.some((s) => /tools\/itest\/boot-desktop-profile\.mjs/.test(s.run || ''));
+      return { id, runsHarness, hasSetup: steps.some((s) => /^pnpm\/action-setup@/.test(s.uses || '')) };
+    })
+    .filter((j) => j.runsHarness);
+}
+
+test('仓库现状：每个跑 boot-desktop-profile 的 job 都装了 pnpm/action-setup', () => {
+  for (const file of ['ci.yml', 'release.yml']) {
+    const list = itestJobs(toLF(readFileSync(join(WORKFLOWS, file), 'utf8')));
+    if (file === 'ci.yml') assert.ok(list.length >= 2, `ci.yml 里只认出 ${list.length} 个跑集成校验的 job，判据疑似失效`);
+    const missing = list.filter((j) => !j.hasSetup).map((j) => j.id);
+    assert.deepEqual(missing, [], `${file} 里这些 job 要调 pnpm 却没装 pnpm/action-setup: ${missing.join(', ')}`);
+  }
+});
+
+test('反证：删掉某个 job 的 pnpm/action-setup 必须被点名（否则又是「跑不到就看不见」）', () => {
+  const text = toLF(readFileSync(join(WORKFLOWS, 'ci.yml'), 'utf8'));
+  assert.deepEqual(itestJobs(text).filter((j) => !j.hasSetup), []);
+  const mutated = text.replace('      - uses: pnpm/action-setup@v4\n        with:\n          version: 11.7.0\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 24\n      - name: 缓存官方内核', '      - uses: actions/setup-node@v4\n        with:\n          node-version: 24\n      - name: 缓存官方内核');
+  assert.notEqual(mutated, text, '变异没命中 itest job 的 pnpm 安装步骤，反证是空跑');
+  const missing = itestJobs(mutated).filter((j) => !j.hasSetup).map((j) => j.id);
+  assert.deepEqual(missing, ['itest'], `变异后应恰好点名 itest，实得 ${JSON.stringify(missing)}`);
 });

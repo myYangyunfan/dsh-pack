@@ -37,7 +37,10 @@
 > 这是**真实的发布阻塞**（BSD-3 要上游原文与署名人；`@dsh-external` 包的作者未核实），
 > 不要靠加白名单让它变绿：要么补齐出处，要么明确不发布这两个包并从 `tools/tiers.json` 摘掉。
 
-（`--job=j3` 单独跑，用来钉住 pnpm 构建脚本放行的文案与恢复路径，防止 `docs/recovery.md` 腐烂。）
+（`--job=j3` 单独跑：它用一个自带 `@photostructure/sqlite` 的夹具包去钉**内核/pnpm 的构建脚本放行机制**
+（`pendingBuilds` → `allowBuilds` 就地改写、不新增重复键）仍然按我们写文档时描述的那样工作。
+注意它**不再**是给 `docs/recovery.md` 兜底的：现成员集合没有任何原生 install 脚本，那篇文档里的
+放行段落已随之作废。跑 J3 的 job 必须装 pnpm —— 内核的 `dsh plugin add` 是 shell 出去调它的。）
 
 ## 预发布通道
 

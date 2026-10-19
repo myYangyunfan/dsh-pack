@@ -86,6 +86,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # 这两个 job 必须有 pnpm：内核的 `dsh plugin add` 是 shell 出去调 pnpm 的，
+      # 光有 actions/setup-node 时 runner 上没有 pnpm，J1 第一步就报
+      # 'pnpm' is not recognized as an internal or external command（2026-10-19 CI 实测）。
+      # 版本与 static/unit 对齐，别一个 job pnpm 11.7、另一个 pnpm 10。
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -114,6 +121,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      # 同 itest：J3 验的就是 pnpm 的构建脚本放行流程，runner 上没有 pnpm 只会得到
+      # 'pnpm' is not recognized，夹具原生依赖根本没机会被走到。
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
