@@ -2,7 +2,7 @@
 # 改动的正确姿势：改 tools/tiers.json（层与成员）或改成员包自己的
 # cordis.patch.yml（行内容），然后跑 node tools/build-meta-patches.mjs 重新生成。
 #
-# 层：全量层（一次装齐）（meta-all / 发布名 @dsh-pack/all），成员 29 个。
+# 层：全量层（一次装齐）（meta-all / 发布名 @dsh-pack/all），成员 24 个。
 #
 # 为什么元包要自带这些行：docs/spike-official-client.md §0.3 实测——元包光靠
 # dependencies 是惰性的（传递依赖不会成为 bundle，row 也完全不组合，且用户无报错）。
@@ -18,9 +18,6 @@
     # ── dsh-file-changes ── 会话文件更改投影（fileChanges）：为「文件」视图与回退提供数据
     - id: file-changes
       name: '@dsh-pack/dsh-file-changes'
-    # ── dsh-client-file-changes ── 「文件」视图：会话文件更改追踪 + 一键还原
-    - id: client-file-changes
-      name: '@dsh-pack/dsh-client-file-changes'
     # ── dsh-input-fold ── 超长用户提示词默认折叠为前几行，点击展开全文
     - id: input-fold
       name: '@dsh-pack/dsh-input-fold'
@@ -56,6 +53,9 @@
     # ── dsh-subagent-lens ── 子代理活动快视：Task/subagent 委派调用的展开式活动视图
     - id: dsh-subagent-lens
       name: '@dsh-pack/dsh-subagent-lens'
+    # ── dsh-goal-completion ── 目标收尾：为已达成目标的会话提供收尾标签页与归档动作
+    - id: goal-completion
+      name: '@dsh-pack/dsh-goal-completion'
     # ── dsh-easyrewrite ── 消息撤回与再编辑（上游 Renzic-Stone/DSH-EasyRewrite）
     - id: dsh-easyrewrite
       name: '@dsh-pack/dsh-easyrewrite'
@@ -68,13 +68,10 @@
     # ── dsh-better-sidebar ── VSCode 式右侧栏工作台（文件 / 编辑器 / 终端 / git / 浏览器），按会话隔离
     - id: better-sidebar
       name: '@dsh-pack/dsh-better-sidebar'
-      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === '@dsh-pack/dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"
     # ── dsh-basics-panel ── 设置页可视化管理 MCP 服务器 / 技能 / 规则
     - id: basics-panel
       name: '@dsh-pack/dsh-basics-panel'
-    # ── dsh-reasoning-effort ── Codex 风格「模型 + 推理强度」选择器
-    - id: reasoning-effort
-      name: '@dsh-pack/dsh-reasoning-effort'
     # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
     - id: synapse
       name: '@dsh-pack/dsh-synapse'
@@ -107,40 +104,6 @@
         agentPreset: standard
         # 注册 /zcode 斜杠命令约定。
         slashCommand: true
-    # ── dsh-community-market ── 可视化插件市场：开放目录源 + 搜索 + registry 校验安装
-    - id: community-market
-      name: '@dsh-pack/dsh-community-market'
-    # ── harness-pet ── 桌面小鲸鱼宠物
-    - id: harness-pet
-      name: '@dsh-pack/harness-pet'
-      disabled: true
-    # ── dsh-cardian ── 知识中心：RepoWiki / 知识卡片 / 记忆三区知识库
-    - id: cardian
-      name: '@dsh-pack/dsh-cardian'
-      disabled: true
-      config:
-        # Obsidian 仓库路径：知识卡片 / 记忆 / RepoWiki 都写入此目录。
-        # 可改为绝对路径，例如 !!js path.join(process.env.HOME, 'obsidian-vault')
-        vaultPath: ./cardian-vault
-        autoInit: false
-    # ── graph-memory ── 跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回
-    - id: graph-memory
-      name: '@dsh-pack/graph-memory/dsh'
-      disabled: true
-      config:
-        dbPath: !!js dshHomePath('graph-memory/graph-memory.db')
-        extractionEnabled: true
-        recallEnabled: true
-        recallMaxNodes: 6
-        recallMaxDepth: 2
-        maintenanceInterval: 6
-        # Secrets stay outside the bundle and repository. Set these variables
-        # in the environment that starts DSH to enable semantic vector recall.
-        embedding:
-          apiKeyEnv: !!js "process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ? 'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined"
-          baseURL: !!js process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL
-          model: !!js process.env.GRAPH_MEMORY_EMBEDDING_MODEL
-          dimensions: !!js "process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS ? Number(process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS) : undefined"
     # ── dsh-pocket ── 手机扫码实时同屏操控桌面 web（WebSocket 透传 + cloudflared 隧道 + 二维码配对）
     - id: dsh-pocket
       name: '@dsh-pack/dsh-pocket'

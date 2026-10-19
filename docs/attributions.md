@@ -8,7 +8,6 @@ DSH Desktop 集成了大量开源组件。本文件汇总主要第三方项目�
 |---|---|---|---|
 | [Zat-DSH Engine](https://github.com/mishibeikejie/zat-dsh-engine) | 0.4.0 | MIT | 设置 → 插件 → 插件市场（完整替换旧市场，随 v0.3.6 发布） |
 | [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | 0.12.2 | MIT | 侧边栏工作台 bundle |
-| [harness-pet](https://github.com/cakeni/harness-pet) | 0.1.0 | MIT | 桌面宠物 bundle（鲸鱼素材见 `assets/plugins/harness-pet/assets/whale/ATTRIBUTION.md`） |
 | [@deepseek-ai/dsh](https://www.npmjs.com/package/@deepseek-ai/dsh) | 0.1.0-rc.6 | MIT | DeepSeek Harness CLI 与插件生态 |
 | [koffi](https://koffi.dev/) | 3.1.5 | MIT | 原生 FFI（目录选择器 / 原子写 / 会话持久化） |
 | [Electron](https://www.electronjs.org/) | 43.4.0 | MIT | 桌面壳运行时 |

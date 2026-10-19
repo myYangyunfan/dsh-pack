@@ -102,12 +102,9 @@ darwin-arm64  darwin-x64  linux-arm64  linux-x64  win32-arm64  win32-x64
 **install 脚本跑不跑不影响加载**。所以：
 
 - 风险等级：从「knowledge 层装不上 / 要 MSVC」下调为「安装期出现一次 ignored-builds 提示」。
-- 仍要把两步操作写进 `@dsh-pack/knowledge` 的 README（设置 → 插件 →「Allow these scripts and retry」），
-  并让 CI 断言 `pendingBuilds` 里点名的就是这个包，防止说明腐烂。
-  *（后续修订：`knowledge` 作为元包已随阶梯退役，见 §0.3 末；这句放行说明现在挂在
-  `@dsh-pack/all` 与 `docs/recovery.md`，被点名的原生依赖来自其中的 `graph-memory`。）*
-- `graph-memory` 声明的是 `^1.0.0` 而实测可用的是 `1.2.1` ⇒ **锁精确版本**，
-  否则浮到某个可能不带 win32 预编译的 1.x。
+- *（后续修订：`knowledge` 元包与 `graph-memory` 成员均已退役/摘除，现成员集合没有
+  原生 install 脚本，`@dsh-pack/all` 不再触发放行提示。本节保留为当时的测量记录。）*
+- 通用结论：依赖声明 **锁精确版本**，否则可能浮到不带目标平台预编译的次版本。
 
 ## 0.3 元包的传递依赖**不会**成为 bundle（架构性结论）
 

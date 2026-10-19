@@ -3,6 +3,11 @@
 > 面向本机已装官方 DeepSeek Harness 客户端（`desktop` profile）的场景。
 > 本文只写**两条真实可走的通道**，以及升级到「修后版本」必须注意的几件事。
 > 背景与契约以 `docs/spike-official-client.md`、`AGENTS.md` 为准。
+>
+> **历史批次说明**：下文第 0–4 节的「32 个成员 / 34 个 tarball」是 0.2.0 那批交付的记录；
+> 现成员集合已收缩为 **24 个**（`dsh-cardian`、`graph-memory`、`dsh-community-market`、
+> `harness-pet` 已摘除），通道与姿势不变，条数以 `tools/tiers.json` 与
+> `node tools/pack-local.mjs` 现跑输出为准。
 
 ## 0. 这批交付物是什么
 
@@ -78,7 +83,7 @@ node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge --us
 （元包 + 32 成员全到齐、版本就是本批 0.2.x），启用后 `--dump-config` 32 个 id 全在、
 重复 0、致命诊断 0。registry 只在**安装那一刻**要在；装完 node_modules 是自足的。
 
-装完重启应用。首次装会被构建门禁拦一次（见 §5；本机 `allowBuilds` 已放行，不会再弹）。
+装完重启应用。现成员集合没有原生 install 脚本，不会再触发构建门禁（§5）。
 
 > ⚠ **别用「粘 all 的 .tgz 路径」这条路装元包。** 实测（本机真 profile 副本）：
 > profile 里那条陈旧的 `"@dsh-pack/all": "^0.1.0"` 会让 pnpm 为同名包做重解析，
@@ -119,10 +124,8 @@ node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge --us
 ### 4b. 自己在客户端里点（不用叫 agent）
 
 路径清单已生成：**`packs/PATHS.txt`**（一行一条绝对路径，正斜杠写法，可反复重生成：
-`node tools/pack-local.mjs`）。它的顺序是刻意排的：第 1 条是「每轮对话 TypeError」的正主；
-最后 2 条会碰原生构建脚本（better-sidebar 的 `node-pty`、graph-memory 的
-`@photostructure/sqlite`），放最后是因为**在放行之前，此后每一次安装都会被同一个门禁整体拒掉**。
-（原生依赖只有这两个包；`harness-pet` 名字像带原生资产，实则零 `dependencies`。）
+`node tools/pack-local.mjs`）。第 1 条是「每轮对话 TypeError」的正主；现成员集合没有
+带 install 脚本的依赖，不会再有「构建门禁拒掉后续安装」的排序问题。
 
 1. 设置 → 插件，先在列表里把 **`@dsh-pack/all` 的开关关掉**（停用，不要卸载 ——
    卸载在无 hmr 服务时会报 `stop-profile`）。**本机已经是这个状态**：profile 的
@@ -135,29 +138,16 @@ node tools/codemod/publish-local-preview.mjs http://127.0.0.1:14874 --purge --us
    想一条装齐就用 §3 的通道 A。
 3. 装完对话框上会有一个**「立即启用」**按钮 —— 点它，它做的就是把包名写进
    `dsh.profile.bundles`（内核 `setBundleEnabled(name, true)`）。
-4. 若遇到 **「允许这些脚本并重试」**（`installApproveAndRetry`）就点它，然后照第 3 步
-   再启用一次。**本机不会再弹**：profile 的 `pnpm-workspace.yaml` 里
-   `allowBuilds` 已经是 `{'@photostructure/sqlite': true, node-pty: true}`。
-   （没放行过的机器会弹一次，写的就是这个字段，之后不再询问。）
-5. 32 条都装完启用后**重启客户端**（页内注入清单只在宿主 ready 时抓一次，刷新页面无效；
+4. 不会再弹「允许这些脚本并重试」：现成员集合里没有带 install 脚本的依赖。
+5. 全部装完启用后**重启客户端**（页内注入清单只在宿主 ready 时抓一次，刷新页面无效；
    内核自己的提示是「更改将在下次启动生效」）。实测单个成员安装约 1–3 分钟
-   （每次都要重解析整棵树），32 条要留够时间。
-6. 想核对结果：插件列表里应出现 32 个可开关的条目，`@dsh-pack/all` 仍是关闭态。
+   （每次都要重解析整棵树），条数多时要留够时间。
+6. 想核对结果：插件列表里应出现对应的可开关条目，`@dsh-pack/all` 仍是关闭态。
 
-## 5. 首次安装会被 pnpm 11 的构建门禁拦一次（没放行过的机器）
+## 5. 构建门禁
 
-两个依赖带 install 脚本，pnpm 默认不跑：`node-pty`（better-sidebar 的
-`optionalDependencies`）、`@photostructure/sqlite`（graph-memory）。全仓库就这两处
-（实测 J2 的报错原文：`Ignored build scripts: @photostructure/sqlite@1.2.1, node-pty@1.1.0`）。
-本机 profile 的 `allowBuilds` 已经是 `true`，不会再弹；其它机器安装会报
-`ERR_PNPM_IGNORED_BUILDS`，按提示做一次即可：
-
-- 客户端里：点「**允许这些脚本并重试**」；
-- agent：`install_bundle` 带上 `approvedBuilds: ["node-pty", "@photostructure/sqlite"]`。
-
-这两个包**不需要编译工具链**：sqlite 的六个平台预编译都在包内（含 win32-x64/arm64），
-`node-gyp-build` 运行期直接按 `prebuilds/<platform>-<arch>/` 取二进制。那一下放行是让
-安装器闭嘴，不是「不点就没有二进制」。
+现成员集合没有带 `install` 脚本的依赖，`ERR_PNPM_IGNORED_BUILDS` 不会在安装 `all`
+或任何成员时触发。若今后新增原生依赖成员，需同步本节与 `AGENTS.md`。
 
 ## 6. 回滚
 

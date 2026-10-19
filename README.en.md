@@ -1,7 +1,7 @@
 # DSH Pack
 
 > A plugin pack for the **official DeepSeek Harness desktop client**.
-> 32 plugins — install the single `@dsh-pack/all` package and you are done.
+> 24 plugins — install the single `@dsh-pack/all` package and you are done.
 
 **This repository is no longer a desktop client.** It used to be one
 (`dsh-tauri/` Rust shell + `dsh-desktop/` kernel-side machinery) wrapping the upstream
@@ -34,7 +34,7 @@ the in-app agent to `install_bundle` it for you.
 
 ### One package installs everything: `@dsh-pack/all`
 
-Install this single package and all 32 plugins are in.
+Install this single package and all 24 plugins are in.
 
 > ⚠ **Once you have `all`, do not also install any of its members individually.**
 > Every plugin is self-mounting by design, and the kernel's patch `insert` appends
@@ -48,27 +48,17 @@ Install this single package and all 32 plugins are in.
 
 | Group | Contents | Size | Notes |
 | --- | --- | --- | --- |
-| Everyday (18) | balance & per-turn cost, file-change tracking and revert, drag/paste, input history and folding, auto-compact, change review, off-peak price guard, settings tidy-up, Quest UI, subagent lens, message recall, workspace anchor, custom system prompt | small | No native modules, works immediately |
-| Heavier UI / host routes (9) | right sidebar, MCP/skills panel, synapse canvas, vision & reasoning effort, prompt optimizer, community market, zcode history migration, `harness-pet` | medium | `harness-pet` ships disabled |
-| `dsh-cardian` + `graph-memory` | knowledge base + cross-session graph memory | ~85 MB | `graph-memory` **needs a one-time build-script approval** (`dsh-cardian` has no native deps); both ship disabled |
+| Everyday (16) | balance & per-turn cost, file-change tracking and revert, input history and folding, auto-compact, change review, off-peak price guard, settings tidy-up, Quest UI, subagent lens, goal completion, message recall, workspace anchor, custom system prompt | small | No native modules, works immediately |
+| Heavier UI / host routes (5) | right sidebar, MCP/skills panel, synapse canvas, prompt optimizer, zcode history migration | medium | |
 | `dsh-pocket` | phone QR mirroring | ~45 MB | Upstream package, GPL-2.0 — we depend on it, we do not fork it |
 | `dsh-openclaw-bridge` | WeChat / Feishu channel bridge | ~15 MB | |
 | `billion-context-dsh` | ACP-driven context compaction backend | ~35 MB | Installing it *is* the opt-in |
 
-## Two things you must know
+## One thing you must know
 
-**1. Enabling or disabling a plugin requires an app restart, not a page reload.**
+**Enabling or disabling a plugin requires an app restart, not a page reload.**
 The host captures the page-injection list once at startup; after that it is a snapshot.
 Pressing F5 will show nothing.
-
-**2. Anything pulling in `graph-memory` asks you to approve a build script once.**
-pnpm 11 blocks dependency install scripts by default, and `@photostructure/sqlite` has
-`"install": "node-gyp-build"`, so the first install fails and lists a pending build.
-Click **“Allow these scripts and retry”** in Settings → Plugins. It persists by package name.
-
-This is *not* “you need a C++ toolchain”: prebuilt binaries for all six platforms
-(including `win32-x64` / `win32-arm64`) ship inside the package, and `node-gyp-build`
-loads from `prebuilds/<platform>-<arch>/` at runtime. The click just silences the installer.
 
 ## What we deliberately gave up
 
@@ -78,7 +68,6 @@ Honest list of what a plugin cannot do, so nobody re-requests it:
 | --- | --- |
 | Tray, close-to-tray, one-click restart | **gone** (the official client has no tray concept at all) |
 | **OS-level** turn-complete notifications, taskbar flash | degraded to in-page |
-| `harness-pet` native floating window | in-page pet only |
 | WSL backend (kernel running in a distro) | **gone** — see `docs/wsl.md` |
 | Custom app icon (incl. rewriting `.lnk` shortcuts) | **gone** |
 | Our 36px glass titlebar + overflow menu | the official client uses native window chrome |
@@ -90,14 +79,12 @@ and one-click file revert — all now plain `ctx.webServer` routes in a plugin's
 ## What's inside
 
 `core`: balance dock (the official client has **no** balance feature at all), session file
-changes + diff + revert, image paste, drag-and-drop attach, input history / folding,
-auto-`/compact`, AI self-review of changes, peak/off-peak price guard, seamless message
-re-edit, conversation tweaks, quest UI, subagent lens, settings nav/grouping, custom system
-prompt, workspace anchor.
+changes, input history / folding, auto-`/compact`, AI self-review of changes, peak/off-peak
+price guard, seamless message re-edit, conversation tweaks, quest UI, subagent lens, goal
+completion, settings nav/grouping, custom system prompt, workspace anchor.
 
-`plus`: VSCode-like right sidebar, MCP/skills/rules panel, peak price guard, synapse canvas,
-side session, reasoning-effort picker, `view_image` for text-only models, prompt optimizer,
-community plugin market, zcode history migration, pet.
+`plus`: VSCode-like right sidebar, MCP/skills/rules panel, synapse canvas, prompt optimizer,
+zcode history migration.
 
 Full per-plugin list and live toggles: Settings → Plugins, once installed.
 
@@ -105,7 +92,7 @@ Full per-plugin list and live toggles: Settings → Plugins, once installed.
 
 ```bash
 pnpm install
-node tools/audit/index.js                       # 6 static gates; P0 among them
+node tools/audit/index.js                       # 8 static gates; P0 among them
 node tools/build-meta-patches.mjs               # regenerate meta-all patch layer
 node --test "packages/*/test/*.test.js"
 node tools/itest/boot-desktop-profile.mjs --job=j1   # real install + real composition

@@ -42,11 +42,7 @@
 | `@dsh-pack/dsh-synapse` | 0.3.0 | MIT | ✓ | （LICENSE 有版权行，见文件） | - |
 | `@dsh-pack/dsh-reasoning-effort` | 0.7.0 | MIT | ✓ | DSH Desktop contributors | - |
 | `@dsh-pack/dsh-zcode-migrate` | 0.1.1 | MIT | ✓ | dsh-zcode-migrate contributors | - |
-| `@dsh-pack/dsh-cardian` | 0.14.0 | MIT | ✓ | cardian contributors | - |
-| `@dsh-pack/dsh-community-market` | 0.1.1 | MIT | ✓ | Anywhere Labs | - |
 | `@dsh-pack/dsh-better-sidebar` | 0.15.3 | MIT | ✓ | dsh-external（上游 omdsh-dev/DSH-better-sidebar） | 59 |
-| `@dsh-pack/graph-memory` | 1.6.0-beta.1 | MIT | ✓ | adoresever（上游 adoresever/graph-memory） | 4 |
-| `@dsh-pack/harness-pet` | 0.2.0 | MIT | ✓ | cakeni（上游 cakeni/harness-pet） | - |
 | `@dsh-pack/billion-context-dsh` | 0.2.1 | MIT | ✓ | billion-context-dsh contributors | 1 |
 | `@dsh-pack/dsh-openclaw-bridge` | 0.8.0 | MIT | ✓ | openclaw-dsh-bridge contributors | - |
 | `@dsh-pack/dsh-vision` | 0.3.0 | BSD-3-Clause | ✓ | dsh-external | - |
@@ -63,7 +59,7 @@
 | `dsh-super-injector` | npm 无此包；社区目录给的仓库 `github.com/dsh-external/dsh-super-injector` 返回 **404**；无 author；而且我们**改过它的源码** | manifest 写 BSD-3-Clause 却没有任何上游原文可引。由我们补一份 BSD-3 再填个署名，等于**伪造许可来源** |
 | `dsh-side-session` | 上游 `github.com/hzhz314159/dsh-side-session` **真实存在**（描述与内置插件逐字吻合），但**没有 LICENSE 文件**；npm 无此包 | 无许可证 = 保留所有权利。我们此前给它标 `license: "MIT"` 本身就是不实标注，无权以 MIT 再分发 |
 
-两者已从 `tools/tiers.json` 摘除（`plus` 11 → 9，分层成员合计 32），源码移到 `not-shipped/`
+两者已从 `tools/tiers.json` 摘除，源码移到 `not-shipped/`
 留在仓库作对照，但**不进 `packages/`** —— 这样审计与打包门禁的绿灯只覆盖我们真能发的东西。
 
 需要 `dsh-side-session` 的用户，可在「设置 → 插件 → GitHub 仓库地址」填上游地址直接装：
@@ -73,9 +69,7 @@
 
 1. **`dsh-vision` 是 BSD-3-Clause**（有 LICENSE 文件）。发布前核对其署名行与上游一致。
 2. **`dsh-pocket` 为 GPL-2.0**，按上游原样依赖、不 fork。
-3. **`graph-memory` 的 `license: "MIT"` 已核对准确**：磁盘 LICENSE 是
-   `MIT License, Copyright (c) 2026 adoresever (Wywelljob@gmail.com)`。
-4. `docs/attributions.md` 记的 `v4-flash-godmode-opencode-go` 上游无 LICENSE 一条已不再是发布物
+3. `docs/attributions.md` 记的 `v4-flash-godmode-opencode-go` 上游无 LICENSE 一条已不再是发布物
    —— 9 个 agent-presets 随自制壳一并删除。
 
 ## GPL-2.0 组件的处理方式
@@ -93,8 +87,8 @@
 
 ## 自带 vendored 依赖的包
 
-4 个包在目录里携带自己的 `node_modules`：`dsh-better-sidebar`(59)、`dsh-pocket`(26)、
-`graph-memory`(4)、`billion-context-dsh`(1)。
+3 个包在目录里携带自己的 `node_modules`：`dsh-better-sidebar`(59)、`dsh-pocket`(26)、
+`billion-context-dsh`(1)。
 
 这些**不会进发布 tarball**：每个包的 `package.json#files` 白名单只列产物目录
 （`lib` / `dist` / `client` / `core` / `assets` 等），不含 `node_modules`；
@@ -102,11 +96,7 @@
 并断言产物里不出现 `node_modules`，就是钉住这件事——路径安装会掩盖 `files` 写错，
 tarball 安装不会。
 
-其中两个含**原生二进制**，许可与来源需一并留意：
-
-- `graph-memory` 依赖 `@photostructure/sqlite`（含六平台 `prebuilds/*.node`，其 install 脚本是
-  `node-gyp-build`）；
-- `dsh-community-market` 可选依赖 `sharp`（经 `@img/sharp-*` 预编译包提供，无 install 脚本）。
+现成员集合里没有携带**原生二进制**的依赖；新增此类依赖时，许可与来源需一并登记到本节。
 
 ## 重新生成本清单
 

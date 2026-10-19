@@ -22,16 +22,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(here, '..', '..', '..');
 const selfMount = require(resolve(REPO, 'tools', 'audit', 'self-mount.js'));
 
-const { findMetaDepDrift } = selfMount;
+const { findMetaDepDrift, loadUntieredDirs } = selfMount;
 
 const metaManifest = JSON.parse(readFileSync(join(REPO, 'packages', 'meta-all', 'package.json'), 'utf8'));
 
-/** 仓库里的自装载成员（除元包外）：判定口径与门禁一致 —— 目录名不以 meta- 开头且有 dsh.bundle.patch。 */
+/** 仓库里的自装载成员（除元包与 untiered 退役件）：判定口径与门禁一致 —— 目录名不以 meta- 开头、有 dsh.bundle.patch、不在 untiered。 */
 function repoMembers() {
+  const untiered = loadUntieredDirs();
   const out = [];
   for (const dir of readdirSync(join(REPO, 'packages'))) {
     const pj = join(REPO, 'packages', dir, 'package.json');
-    if (!existsSync(pj) || dir.startsWith('meta-')) continue;
+    if (!existsSync(pj) || dir.startsWith('meta-') || untiered.has(dir)) continue;
     const m = JSON.parse(readFileSync(pj, 'utf8'));
     if (m.dsh?.bundle?.patch) out.push({ dir, name: m.name, version: m.version });
   }
@@ -41,7 +42,7 @@ function repoMembers() {
 test('仓库现状：依赖表与自装载成员逐项对上（名字 + ^当前版本）', () => {
   const members = repoMembers();
   // 反证的一部分：样本量为 0 时「零漂移」是空跑，必须先把名单非空钉住。
-  assert.ok(members.length >= 30, `自装载成员只有 ${members.length} 个，名单疑似被清空`);
+  assert.ok(members.length >= 24, `自装载成员只有 ${members.length} 个，名单疑似被清空`);
   assert.deepEqual(findMetaDepDrift(metaManifest, members), []);
   assert.equal(Object.keys(metaManifest.dependencies).length, members.length, '元包依赖条数与成员数不一致');
 });

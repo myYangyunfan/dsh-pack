@@ -65,11 +65,11 @@ bundle，而 `parseDshClient` 不校验取值，一个「顺手改成 desktop」
 实测：`dsh plugin add <pkg>` 只把包名写进 `dsh.profile.bundles` 与 `dependencies`，
 真正插入 loader 行的是**包自己的 `cordis.patch.yml`**（由 `package.json → dsh.bundle.patch` 指过去），
 profile 那份补丁层全程保持 `[]`。没有 `dsh.bundle.patch` 的包，管理器直接判 `not-bundle` 并
-**回滚整次安装**（迁移期只有 18 个包声明，所以那时这一项恒红；现在 33 个自装载包全部声明，
+**回滚整次安装**（迁移期只有 18 个包声明，所以那时这一项恒红；现在所有自装载包全部声明，
 唯一例外是纯能力库 `host-capabilities`）。
 检查内容：声明存在、形态是字符串或有序字符串数组、每个路径都落在包内、文件能解析成
 **YAML 数组**（顶层不是数组 = cordis 的 entry-list 方言读不出来）、数组里有一个 `insert` 块
-且行内 `name` 等于本包包名（或其文档化子路径，如 `graph-memory/dsh`）、每行都有 `id`；
+且行内 `name` 等于本包包名、每行都有 `id`；
 再跨全部包做 **loader id 唯一性**（同 id 双登记就是上面那个 multiple sources 崩溃）；
 迁移期还会读 `dsh-desktop/scripts/lib/companion-plugins.js` 这份 tier 映射，核对登记 id 与
 bundle patch 声明的 id 一致——issue #104 就是两处 id 漂移让自愈的 `dropBlocksByIds` 永不命中、
@@ -93,7 +93,6 @@ bundle patch 声明的 id 一致——issue #104 就是两处 id 漂移让自愈
 `peerDependencies` 声明过**且**在 `kernel-packages.json` 里（也就是内核真会供给它）、或是相对
 路径。其余报 error——装进 profile 后就是运行期 `ERR_MODULE_NOT_FOUND`，而且往往只在某条用户
 路径上才炸。反向的「声明了却没用到」只降级 warn（bundle 内联会把 import 语句吃掉，判定不确定）。
-注意 `dsh-better-sidebar` 的 `node-pty` 属于计划删除项，这里照实报出来，不为绿而藏。
 抽标识符前会先等长剔除注释：`dsh-super-injector` 的 JSDoc 里写着
 `import type { UserConfig } from 'tsdown'`，不剔注释就会报出一个根本不存在的依赖。
 

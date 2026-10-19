@@ -217,7 +217,7 @@ function packTo(cwd, dest) {
 // （allowBuilds: '<name>': set this to true or false）。插件页那句「Allow these scripts
 // and retry」做的就是**把那行占位值就地改成 true 再重装**——这里照做。
 // 非做不可的理由：图里只要留下一个未放行的构建脚本，此后**每一次** pnpm 调用都会被
-// 同一个门禁整体拒掉（实测：better-sidebar 引入 node-pty 之后 28 个包全红，它们既没
+// 同一个门禁整体拒掉（实测：曾有一次成员带入原生依赖后整条安装链全红，它们既没
 // 装进去也没被组合验证过）。这不是给断言开后门——J2 的「全部安装成功」「每个 id 都
 // 挂上」判据一字未改，只是把用户要手点的那一步补上。
 //
@@ -397,7 +397,7 @@ if (job.includes('j3')) {
       main: 'lib/index.js',
       license: 'MIT',
       dsh: { manifestVersion: 1, bundle: { patch: './cordis.patch.yml' } },
-      // 与 knowledge 层同一个带 node-gyp-build 的依赖
+      // 真实带 node-gyp-build 的依赖，用来触发构建脚本门禁
       dependencies: { '@photostructure/sqlite': '1.2.1' },
     }, null, 2)
   );
@@ -420,7 +420,7 @@ if (job.includes('j3')) {
   const first = dsh('plugin', '--profile', PROFILE, 'add', winPath(join(T3, fixFile)));
   const firstOut = (first.stdout || '') + (first.stderr || '');
   const blocked = /pendingBuilds|ignored[_ -]?builds|Allow these scripts|approve-builds|build scripts/i.test(firstOut);
-  expect(blocked, '首次安装被 pnpm 构建脚本门禁拦住（与 knowledge 层 README 说法一致）',
+  expect(blocked, '首次安装被 pnpm 构建脚本门禁拦住（夹具原生依赖生效）',
     blocked ? '' : `实际输出尾部: ${firstOut.split('\n').filter(Boolean).slice(-4).join(' | ')}`);
   if (blocked) {
     expect(/@photostructure\/sqlite/.test(firstOut), '失败信息里点名 @photostructure/sqlite');

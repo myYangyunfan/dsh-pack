@@ -149,7 +149,7 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
 - **R2** **cordis loader id 一律不改。** id 是补丁层寻址键，而补丁**按 id 整行替换、
   不做字段合并**；改 id 会让用户写在家层里的 `- id: X / disabled: true` 覆盖变成孤儿。
   历史疤：`dsh-super-injector` 的 id 声明错位曾导致双登记启动崩溃（issue #104）。
-  **也不要「顺手统一」id 前缀**（7 个带 `dsh-` 前缀、33 个不带）——丑，但改它零收益且
+  **也不要「顺手统一」id 前缀**（有的带 `dsh-` 前缀、有的不带）——丑，但改它零收益且
   正好踩 #104。已知唯一例外是随插件一起删掉的 `plugin-manager`。
   所有 id 必须对 `tools/audit/kernel-entry-ids.json` 做撞名校验。
 - **R3** 见上面契约第 5 条。
@@ -185,14 +185,9 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
 - **`host-capabilities` 必须构建期内联，不能运行时 import。** 官方浏览器模块系统只对
   种子表（`PLATFORM_MODULES`）、memo 记录、boot-graph 行、已注册工厂解析裸标识符，
   **其余一律 throw**。所以那个包保持零 import、零依赖、`sideEffects:false`。
-- **pnpm 11 会拦依赖的 install 脚本。** `@photostructure/sqlite` 带
-  `"install": "node-gyp-build"`，安装会报 `ERR_PNPM_IGNORED_BUILDS` / `pendingBuilds`，
-  需要在「设置 → 插件」点「Allow these scripts and retry」。
-  但**六个平台预编译（含 win32-x64/arm64）都在包内**，运行期 `node-gyp-build` 直接按
-  `prebuilds/<platform>-<arch>/` 取二进制——那道点击是让安装器闭嘴，不是「不点就没二进制」。
-  因此会被安装器列出来要放行的只有两处：`graph-memory` 的 `@photostructure/sqlite`
-  （`node-gyp-build`）与 `dsh-better-sidebar` 的 `node-pty`（optionalDependencies）。
-  `dsh-cardian` **没有**原生依赖（它的依赖只有 `zod` + peer），别把它算进「要放行的包」里。
+- **现成员集合里没有带 install 脚本的依赖。** `graph-memory` 与 `dsh-better-sidebar` 的
+  `node-pty` 摘除后，`pnpm` 的构建门禁不再在任何成员上触发；新增成员若带入原生依赖，
+  必须先在 `tools/audit/` 里登记，并同步 `docs/recovery.md` 的放行说明。
 - **引用不存在的内核包不会响亮失败。** `dsh.client.inject` 写一个不存在的包名，
   只会产出一个永不挂载的 client 半边，仅在 Web boot audit 里以逐行 import 失败出现。
   实测抓到过两个幽灵名（`@deepseek-ai/dsh-client-runtime`、`-client-web-react`，
@@ -218,8 +213,8 @@ node tools/itest/boot-desktop-profile.mjs --job=j1   # 需一份 npm 装好的�
 - **GPL-2.0 的 `dsh-pocket` 不 fork。** 仅依赖 = 聚合，安全；fork = 派生，
   整个包会变 GPL-2.0 并附带源码提供义务。需要改行为就从分层补丁行的 `config:` 驱动，
   或者给上游提一行 PR。
-- **`.map` 不许带 `sourcesContent` 进 tarball。** `dsh-community-market` 的旧产物里
-  内嵌过完整上游 TypeScript。
+- **`.map` 不许带 `sourcesContent` 进 tarball。** 历史上曾有成员把完整上游 TypeScript
+  内嵌进产物（`publish-readiness` 会当场拦下），所有包的 `.map` 一律按此处理。
 - **`dsh-reasoning-effort` 对「手工声明的自定义 provider」有已知上限**：effort 控件可能不出现，
   根因在内核而非插件，正文见 `docs/upstream/pi-ai-error-taxonomy.md`。
 - **稳定性三原则（评审默认立场）**：① 客户端必须能打开，装配失败终态恢复页而非退出；

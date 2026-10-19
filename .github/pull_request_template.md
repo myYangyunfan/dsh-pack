@@ -46,9 +46,6 @@ type ∈ feat / fix / refactor / perf / docs / test / chore / build
 - [ ] 「设置 → 插件」里安装成功，**且重启应用后**生效
       （启用/停用只刷新页面不会有 —— 页内注入清单是宿主启动期快照）
 - [ ] 相关功能在真机上可见（截图或简短说明）
-- [ ] 若动了 `dsh-cardian` / `graph-memory`：确认 pnpm 构建脚本放行的说明仍然准确
-      （`allowBuilds` 里是**就地改写 `set this to true or false` 这一行**，
-      不要在文件里另加一个 `allowBuilds:` 键 —— YAML 重复键会让安装失败）
 
 ## 影响面与风险
 

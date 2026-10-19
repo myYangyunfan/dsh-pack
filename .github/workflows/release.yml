@@ -54,7 +54,7 @@ jobs:
           version: pnpm changeset version
           # 用 changeset publish 而不是 pnpm -r publish：
           # 它会读 .changeset/pre.json 决定 dist-tag，能正确处理 prerelease 包。
-          # 直接 pnpm -r publish 会在 @dsh-pack/graph-memory@1.6.0-beta.1 上整个失败
+          # 直接 pnpm -r publish 会在 prerelease 成员上整个失败
           # （npm: "You must specify a tag using --tag when publishing a prerelease version."），
           # 而 publish 阶段带 --ignore-scripts 是因为 6 个包挂了 prepare/prepack
           # （发布期构建会重新生成 lib/，发出去的就不是测过的那份产物）。

@@ -5,7 +5,7 @@
   "tiers": {
     "all": {
       "title": "全量层（一次装齐）",
-      "summary": "32 个插件：余额与费用、文件变更追踪与还原、拖入/粘贴、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义，外加知识库、手机同屏、IM 网关、超长上下文与大件。想要小集合就按下面的分组单独装某个插件 —— 每个插件都能独立自挂载。（带原生构建的成员见文末构建脚本放行说明。）",
+      "summary": "24 个插件：余额与费用、文件变更追踪、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义、目标收尾，外加手机同屏、IM 网关与超长上下文。想要小集合就按下面的分组单独装某个插件 —— 每个插件都能独立自挂载。",
       "members": [
         {
           "dir": "dsh-balance",
@@ -16,11 +16,6 @@
           "dir": "dsh-file-changes",
           "tierOf": "core",
           "purpose": "会话文件更改投影（fileChanges）：为「文件」视图与回退提供数据"
-        },
-        {
-          "dir": "dsh-client-file-changes",
-          "tierOf": "core",
-          "purpose": "「文件」视图：会话文件更改追踪 + 一键还原"
         },
         {
           "dir": "dsh-input-fold",
@@ -73,6 +68,11 @@
           "purpose": "子代理活动快视：Task/subagent 委派调用的展开式活动视图"
         },
         {
+          "dir": "dsh-goal-completion",
+          "tierOf": "core",
+          "purpose": "目标收尾：为已达成目标的会话提供收尾标签页与归档动作"
+        },
+        {
           "dir": "dsh-easyrewrite",
           "tierOf": "core",
           "purpose": "消息撤回与再编辑（上游 Renzic-Stone/DSH-EasyRewrite）"
@@ -98,11 +98,6 @@
           "purpose": "设置页可视化管理 MCP 服务器 / 技能 / 规则"
         },
         {
-          "dir": "dsh-reasoning-effort",
-          "tierOf": "plus",
-          "purpose": "Codex 风格「模型 + 推理强度」选择器"
-        },
-        {
           "dir": "dsh-synapse",
           "tierOf": "plus",
           "purpose": "会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布"
@@ -116,29 +111,6 @@
           "dir": "dsh-zcode-migrate",
           "tierOf": "plus",
           "purpose": "zcode CLI 历史会话 → dsh 原生会话日志迁移"
-        },
-        {
-          "dir": "dsh-community-market",
-          "tierOf": "plus",
-          "purpose": "可视化插件市场：开放目录源 + 搜索 + registry 校验安装"
-        },
-        {
-          "dir": "harness-pet",
-          "tierOf": "plus",
-          "purpose": "桌面小鲸鱼宠物",
-          "defaultDisabled": true
-        },
-        {
-          "dir": "dsh-cardian",
-          "tierOf": "knowledge",
-          "purpose": "知识中心：RepoWiki / 知识卡片 / 记忆三区知识库",
-          "defaultDisabled": true
-        },
-        {
-          "dir": "graph-memory",
-          "tierOf": "knowledge",
-          "purpose": "跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回",
-          "defaultDisabled": true
         },
         {
           "dir": "dsh-pocket",
@@ -155,32 +127,6 @@
           "tierOf": "compaction",
           "purpose": "Active Context Pruning：模型驱动的百万级上下文压缩后端"
         }
-      ],
-      "extraDoc": [
-        "### 装完还要两次点击：pnpm 11 的 ignored-builds 提示（knowledge 层专属）",
-        "",
-        "`graph-memory` 依赖 `@photostructure/sqlite`，它的 `install` 脚本是 `node-gyp-build`，",
-        "pnpm 11 默认不放行构建脚本，于是首次安装会停在：",
-        "",
-        "```",
-        "[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @photostructure/sqlite@1.2.1",
-        "Run \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
-        "```",
-        "",
-        "**这不是装失败，也不是要装 MSVC。** 实测（spike §0.2）1.2.1 的六个平台预编译都在包内",
-        "（`prebuilds/win32-x64/…glibc.node` 等），`node-gyp-build` 运行期按平台目录取二进制，",
-        "install 脚本跑不跑都不影响加载。要消掉提示并让它照常工作：",
-        "",
-        "1. 在官方客户端的 **设置 → 插件** 里，安装报错处点 **「Allow these scripts and retry」**",
-        "   （允许这些脚本并重试）——第一次点击；",
-        "2. 重试完成后回到 **设置 → 插件**，确认 `graph-memory` 与 `dsh-cardian` 都在列表里，",
-        "   把它们的开关打开一次——第二次点击。",
-        "",
-        "> 两个已知待办（不在本阶段，别顺手改）：",
-        "> · `graph-memory/package.json` 里该依赖仍写 `^1.0.0`，spike §0.2 的结论是**锁精确版本",
-        ">   （1.2.1）**——浮动的 1.x 可能挑中一个不带 win32 预编译的版本；",
-        "> · 发版 CI 应断言 `pendingBuilds` 里点名的就是这个包，这样上游换依赖时上面那段说明会红，",
-        ">   提醒同步改这里。"
       ]
     }
   },
@@ -200,6 +146,14 @@
     {
       "dir": "dsh-image-paste",
       "reason": "官方客户端已原生内置剪贴板图片粘贴为原生附件，由官方原生能力替代，从元包与默认分层摘除退役。"
+    },
+    {
+      "dir": "dsh-client-file-changes",
+      "reason": "v1.0.0 内置件批量退役（39→28）已从客户端摘除源目录，官方内核自带会话文件变更视图，功能面由原生能力接走。"
+    },
+    {
+      "dir": "dsh-reasoning-effort",
+      "reason": "内核 0.2.1 已整块接走「模型 + 推理强度」选择与 reasoningEfforts 校验，2026-10-17 从客户端退役（在册 30→29）。"
     }
   ]
 }

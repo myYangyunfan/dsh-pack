@@ -516,6 +516,7 @@ module.exports = {
   readBundlePatch,
   loadTierMap,
   loadRawTiers,
+  loadUntieredDirs,
   findTierOverlaps,
   findMetaDepDrift,
   META_PACKAGES,

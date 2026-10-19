@@ -65,24 +65,19 @@ for (const row of rows) {
 writeFileSync(join(OUT, 'MANIFEST.txt'), lines.join('\n') + '\n');
 
 // PATHS.txt：给「在客户端插件页里逐条粘贴」用的一行一条绝对路径。
-// 顺序有讲究：① 元包与能力库列在最前并注明「不要装」——插件页对 .tgz 的 tarball 形态
-// 不查 already-installed（内核 parseInstallSpec 的 tarball 分支），所以粘错了它真会去装；
-// ② 依赖原生构建脚本的两个包放最后（better-sidebar 的 node-pty、graph-memory 的
-// @photostructure/sqlite）：它们会让 pnpm 弹出「Allow these scripts and retry」，
-// 而在放行之前**此后每一次**安装都会被同一个门禁整体拒掉，放最后就不会堵住别人。
-// 原生依赖只有这两个（实测：harness-pet 零 dependencies，不碰 sqlite），别再往里加。
-const NATIVE_LAST = ['@dsh-pack/dsh-better-sidebar', '@dsh-pack/graph-memory'];
+// 顺序有讲究：元包与能力库列在最前并注明「不要装」——插件页对 .tgz 的 tarball 形态
+// 不查 already-installed（内核 parseInstallSpec 的 tarball 分支），所以粘错了它真会去装。
+// 现成员集合没有原生 install 脚本，不再需要「原生依赖放最后」的排序。
 const NOT_INSTALLABLE = new Set(['@dsh-pack/all', '@dsh-pack/host-capabilities']);
 const installable = rows.filter((r) => !NOT_INSTALLABLE.has(r.name));
 const ordered = [
   ...installable.filter((r) => r.name === '@dsh-pack/billion-context-dsh'),
-  ...installable.filter((r) => !NATIVE_LAST.includes(r.name) && r.name !== '@dsh-pack/billion-context-dsh'),
-  ...installable.filter((r) => NATIVE_LAST.includes(r.name)),
+  ...installable.filter((r) => r.name !== '@dsh-pack/billion-context-dsh'),
 ];
 const pathLines = [
   '# 客户端「设置 → 插件」安装输入框里逐条粘贴的路径（一行一条，正斜杠写法）。',
   '# 前置：先把 @dsh-pack/all 的开关关掉（停用，不卸载），否则成员的行会被插入两次。',
-  '# 顺序：第 1 条是「每轮对话 TypeError」的正主；最后 2 条会弹构建门禁，弹了就点它。',
+  '# 顺序：第 1 条是「每轮对话 TypeError」的正主。',
   '# 想「一条装齐」别在这儿凑：走 INSTALL.md §3 的通道 A（本机 registry + 按名装',
   '# @dsh-pack/all@^0.2.0）—— 元包的 tarball 路径粘进来会被陈旧的 ^0.1.0 声明噎死。',
   '# 本文件由 node tools/pack-local.mjs 生成；详细步骤见同目录 INSTALL.md。',

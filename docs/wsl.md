@@ -54,12 +54,7 @@ dsh --profile work web --host 0.0.0.0 --port 0
 这条路的限制也说清楚：
 
 - profile 名**不能**叫 `desktop`（`rejectElectronProfile` 硬拦，大小写不敏感）；
-- `all` 里的 `graph-memory` 需要放行 `@photostructure/sqlite` 的构建脚本——
-  纯 CLI 下没有那个「Allow these scripts and retry」按钮，
-  要自己在 profile 的 `pnpm-workspace.yaml` 里把
-  `allowBuilds` 下面那行 `set this to true or false` 改成 `true`（**就地改，别再新增一个 `allowBuilds:` 键，YAML 重复键会让安装失败**）；
-- 原生模块要能在该 Linux 目标上取到预编译，否则 `node-gyp-build` 会退回源码编译，
-  需要自带工具链。
+- 现成员集合没有原生 install 脚本，纯 CLI 下不需要手动改 `allowBuilds`。
 
 ## 旧 WSL 实现的命令注入防护（如果将来有人重做，请照抄）
 

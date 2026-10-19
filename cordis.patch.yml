@@ -9,9 +9,6 @@
     # ── dsh-file-changes ── 会话文件更改投影（fileChanges）：为「文件」视图与回退提供数据
     - id: file-changes
       name: './packages/dsh-file-changes/lib/index.js'
-    # ── dsh-client-file-changes ── 「文件」视图：会话文件更改追踪 + 一键还原
-    - id: client-file-changes
-      name: './packages/dsh-client-file-changes/lib/index.js'
     # ── dsh-input-fold ── 超长用户提示词默认折叠为前几行，点击展开全文
     - id: input-fold
       name: './packages/dsh-input-fold/lib/index.js'
@@ -47,6 +44,9 @@
     # ── dsh-subagent-lens ── 子代理活动快视：Task/subagent 委派调用的展开式活动视图
     - id: dsh-subagent-lens
       name: './packages/dsh-subagent-lens/lib/index.js'
+    # ── dsh-goal-completion ── 目标收尾：为已达成目标的会话提供收尾标签页与归档动作
+    - id: goal-completion
+      name: './packages/dsh-goal-completion/lib/index.js'
     # ── dsh-easyrewrite ── 消息撤回与再编辑（上游 Renzic-Stone/DSH-EasyRewrite）
     - id: dsh-easyrewrite
       name: './packages/dsh-easyrewrite/lib/index.js'
@@ -59,13 +59,10 @@
     # ── dsh-better-sidebar ── VSCode 式右侧栏工作台（文件 / 编辑器 / 终端 / git / 浏览器），按会话隔离
     - id: better-sidebar
       name: './packages/dsh-better-sidebar/lib/index.js'
-      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === '@dsh-pack/dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"
     # ── dsh-basics-panel ── 设置页可视化管理 MCP 服务器 / 技能 / 规则
     - id: basics-panel
       name: './packages/dsh-basics-panel/lib/index.js'
-    # ── dsh-reasoning-effort ── Codex 风格「模型 + 推理强度」选择器
-    - id: reasoning-effort
-      name: './packages/dsh-reasoning-effort/lib/index.js'
     # ── dsh-synapse ── 会话地图：同一工作区的会话/追问/分支呈现为可拖拽画布
     - id: synapse
       name: './packages/dsh-synapse/index.js'
@@ -98,40 +95,6 @@
         agentPreset: standard
         # 注册 /zcode 斜杠命令约定。
         slashCommand: true
-    # ── dsh-community-market ── 可视化插件市场：开放目录源 + 搜索 + registry 校验安装
-    - id: community-market
-      name: './packages/dsh-community-market/lib/index.js'
-    # ── harness-pet ── 桌面小鲸鱼宠物
-    - id: harness-pet
-      name: './packages/harness-pet/lib/index.js'
-      disabled: true
-    # ── dsh-cardian ── 知识中心：RepoWiki / 知识卡片 / 记忆三区知识库
-    - id: cardian
-      name: './packages/dsh-cardian/lib/index.js'
-      disabled: true
-      config:
-        # Obsidian 仓库路径：知识卡片 / 记忆 / RepoWiki 都写入此目录。
-        # 可改为绝对路径，例如 !!js path.join(process.env.HOME, 'obsidian-vault')
-        vaultPath: ./cardian-vault
-        autoInit: false
-    # ── graph-memory ── 跨会话知识图谱记忆：PageRank / 社区检测 / 向量召回
-    - id: graph-memory
-      name: './packages/graph-memory/lib/dsh.js'
-      disabled: true
-      config:
-        dbPath: !!js dshHomePath('graph-memory/graph-memory.db')
-        extractionEnabled: true
-        recallEnabled: true
-        recallMaxNodes: 6
-        recallMaxDepth: 2
-        maintenanceInterval: 6
-        # Secrets stay outside the bundle and repository. Set these variables
-        # in the environment that starts DSH to enable semantic vector recall.
-        embedding:
-          apiKeyEnv: !!js "process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ? 'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined"
-          baseURL: !!js process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL
-          model: !!js process.env.GRAPH_MEMORY_EMBEDDING_MODEL
-          dimensions: !!js "process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS ? Number(process.env.GRAPH_MEMORY_EMBEDDING_DIMENSIONS) : undefined"
     # ── dsh-pocket ── 手机扫码实时同屏操控桌面 web（WebSocket 透传 + cloudflared 隧道 + 二维码配对）
     - id: dsh-pocket
       name: './packages/dsh-pocket/lib/index.js'

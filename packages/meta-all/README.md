@@ -1,6 +1,6 @@
 # @dsh-pack/all —— 唯一的聚合元包
 
-装这一个包就齐了：29 个插件，`cordis.patch.yml` 里 29 行。
+装这一个包就齐了：24 个插件，`cordis.patch.yml` 里 24 行。
 
 它是**扁平聚合**，不是嵌套元包 —— 实测元包的传递依赖不会成为 bundle，且零报错，
 所以嵌套只会产出一个惰性的空壳。
@@ -31,8 +31,3 @@
   （自带 `cordis.patch.yml` + `package.json#dsh.bundle.patch`），所以「`all` + 某个成员」
   会让那个成员被插两次，症状与上面退役阶梯时一模一样。想只要小集合就别装本包，
   按分组单装。
-- `graph-memory` 带原生可选依赖 `@photostructure/sqlite`（`"install": "node-gyp-build"`），
-  `dsh-better-sidebar` 的 `node-pty` 是 optionalDependencies。首次安装会要求放行一次
-  构建脚本，见仓库根 `docs/recovery.md`。
-- 出厂关闭的三个成员：`harness-pet`、`dsh-cardian`、`graph-memory`。装上后需要在
-  「设置 → 插件」里各自打开一次，然后**重启应用**（不是刷新页面）。

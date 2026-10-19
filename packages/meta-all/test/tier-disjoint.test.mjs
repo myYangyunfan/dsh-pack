@@ -73,5 +73,5 @@ test('仓库现状：tools/tiers.json 只剩互斥的一层', () => {
   assert.deepEqual(names, ['all'], `分层元包已退役，只应剩 all，实际：${names.join(', ')}`);
   assert.deepEqual(findTierOverlaps(raw), []);
   // 反证的一部分：样本量必须非零，否则「只有一层」这条断言是空跑。
-  assert.ok(raw.all.members.length >= 30, `all 层只剩 ${raw.all.members.length} 个成员，名单疑似被清空`);
+  assert.ok(raw.all.members.length >= 24, `all 层只剩 ${raw.all.members.length} 个成员，名单疑似被清空`);
 });

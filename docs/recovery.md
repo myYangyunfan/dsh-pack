@@ -47,11 +47,9 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 
 | 包 | 内容 | 备注 |
 |---|---|---|
-| `@dsh-pack/all` | 29 个插件（全部成员） | 里面带原生依赖的成员要放行一次构建脚本，见下 |
+| `@dsh-pack/all` | 24 个插件（全部成员） | 全部出厂启用 |
 
-装回来不等于全开：补丁层里有三个条目出厂就写着 `disabled: true` ——
-`harness-pet`、`dsh-cardian`、`graph-memory`，要用得在「设置 → 插件」里自己打开，
-然后**重启应用**（见文首那条）。
+装回来后**重启应用**（页内注入清单只在宿主 ready 时抓一次，见文首那条）。
 
 ⚠️ **装了 `all` 就不要再从「设置 → 插件」单独装其中的某一个成员。**
 每个成员包按设计都必须能单独安装（各自带一份 `cordis.patch.yml`，由
@@ -70,38 +68,11 @@ CLI 的 `dsh plugin --profile <名字>` 只对**自定义** profile 有效——
 元包也只此一个、不做嵌套：实测元包的**传递依赖不会变成 bundle**，
 所以 `all` 自带一份由成员补丁层拼接生成的 `cordis.patch.yml`。
 
-## 「Allow these scripts and retry」是怎么来的
+## 不再需要放行构建脚本
 
-pnpm 11 默认拦依赖的 install 脚本。`all` 里会撞上它的，是带原生依赖的成员：
-`@photostructure/sqlite`（`graph-memory` 的依赖，`install` 脚本是 `node-gyp-build`）与
-`node-pty`（`dsh-better-sidebar` 的终端标签，声明在 `optionalDependencies` 里）。
-所以装 `@dsh-pack/all` 时可能失败并列出 `pendingBuilds`：
-
-```
-[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @photostructure/sqlite@1.2.1
-```
-
-在「设置 → 插件」页面点 **「Allow these scripts and retry」**；批准按包名持久化在
-profile 的 `pnpm-workspace.yaml` 的 `allowBuilds` 里，之后不再询问。
-
-不点放行会怎样：`@photostructure/sqlite` 缺席则图谱记忆不可用；`node-pty` 缺席则终端标签
-不可用，但**不会崩** —— `dsh-better-sidebar` 的 `loadNodePty` 是懒加载且明确 never throws，
-缺席时走 `/sidebar/api/terminal.deps` 给出修复提示，其余功能照常。
-
-被拦下时 pnpm 会先在那个文件里写好一个**待你填空的占位条目**：
-
-```yaml
-allowBuilds:
-  '@photostructure/sqlite': set this to true or false
-```
-
-那个按钮做的事就是把 `set this to true or false` 就地改成 `true`。
-所以如果你更想手改文件：**改这一行的值，别在文件里另加一个 `allowBuilds:` 键**——
-YAML 重复键会让 `pnpm add` 直接失败（我们 CI 的 J3 用例就是钉住这个形状的）。
-
-补充一点实测结论，免得担心：该包**六个平台的预编译二进制都在包内**（含 `win32-x64`、`win32-arm64`），
-`node-gyp-build` 运行期就是按 `prebuilds/<platform>-<arch>/` 取二进制。所以这道点击是
-「让安装器闭嘴」，不是「不点就没有二进制、还要装 MSVC 编译器」。
+现成员集合（24 个）里没有任何带 `install` 脚本的依赖，装 `@dsh-pack/all` 不会触发
+`ERR_PNPM_IGNORED_BUILDS`，也不需要点「Allow these scripts and retry」。
+若新增成员带入原生依赖，必须同时更新本节与 `AGENTS.md`。
 
 ## 版本提示：「may cause crashes or data loss」
 

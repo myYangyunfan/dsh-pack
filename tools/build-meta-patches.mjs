@@ -100,29 +100,25 @@ function readInsertRows(file, dir) {
   return rows;
 }
 
-/** 成员包应有的自指名（graph-memory 的 loader 行指到 ./dsh 子路径导出）。 */
+/** 成员包应有的自指名：一律是包名本身。 */
 function expectedRowName(dir) {
-  return dir === 'graph-memory' ? `@dsh-pack/${dir}/dsh` : `@dsh-pack/${dir}`;
+  return `@dsh-pack/${dir}`;
 }
 
 /**
  * 成员在「Git URL 直装」根补丁里的**真实入口路径**。
  *
- * 这里以前对每个成员硬编码 `lib/index.js`（只给 graph-memory 开了特例），但成员并不
- * 统一构建到 `lib/`：dsh-offpeak / dsh-zcode-migrate 直接发 `src/`，dsh-synapse 发根
- * 目录 `index.js`，billion-context-dsh 发 `dist/`。路径写错**不会响亮失败**——loader
- * 拿不到 fiber，`dsh-client-modules` 的 `processOne()` 见到 `entry.fiber === void 0`
- * 直接跳过，那个插件就静默不进客户端启动图，用户看到的是「装了但没反应、日志干净」。
+ * 这里以前对每个成员硬编码 `lib/index.js`，但成员并不统一构建到 `lib/`：
+ * dsh-offpeak / dsh-zcode-migrate 直接发 `src/`，dsh-synapse 发根目录 `index.js`，
+ * billion-context-dsh 发 `dist/`。路径写错**不会响亮失败**——loader 拿不到 fiber，
+ * `dsh-client-modules` 的 `processOne()` 见到 `entry.fiber === void 0` 直接跳过，
+ * 那个插件就静默不进客户端启动图，用户看到的是「装了但没反应、日志干净」。
  * 2026-09-30 真机实测：offpeak / synapse / zcode-migrate / compaction-acp 四条全中。
  *
  * 所以按成员自己的 `exports["."]` → `main` 推导，并**断言文件真的存在**；推导不出来
  * 就 fail，绝不再退回归某个猜测路径。
  */
-const ENTRY_OVERRIDES = { 'graph-memory': 'lib/dsh.js' };
-
 function entryRelOf(dir) {
-  const override = ENTRY_OVERRIDES[dir];
-  if (override !== undefined) return `./packages/${dir}/${override}`;
   let manifest;
   try {
     manifest = JSON.parse(readFileSync(join(PLUGINS, dir, 'package.json'), 'utf8'));
@@ -273,9 +269,9 @@ for (const [tier, spec] of Object.entries(tiers.tiers)) {
   // 之前 6 个元包手写的是 ">=0.1.0"，有两个真实问题：
   //   · semver.satisfies('1.0.0', '>=0.1.0') === true ⇒ 成员将来发 1.x 会被
   //     元包无条件拉进来，跨 major 没有任何保护；
-  //   · 它也不解决 prerelease：graph-memory 是 1.6.0-beta.1，
+  //   · 它也不解决 prerelease：成员若发 1.6.0-beta.1，
   //     写 ^1.6.0 匹配不到预发布版（semver 默认排除 prerelease），
-  //     knowledge 层装完会「有 row、包却拉不到」——正是我们费力在 better-sidebar
+  //     装完会「有 row、包却拉不到」——正是我们费力在 better-sidebar
   //     那边避免过的静默失效形态。
   // 所以按成员**实际版本**生成 caret：prerelease 自动带上 prerelease 段。
   const wantedDeps = {};

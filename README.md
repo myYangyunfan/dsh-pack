@@ -1,7 +1,7 @@
 # DSH Pack
 
 > 装进**官方 DeepSeek Harness 桌面客户端**的插件整合包。
-> 29 个插件，装 `@dsh-pack/all` 一个包就齐了。
+> 24 个插件，装 `@dsh-pack/all` 一个包就齐了。
 
 <p align="center"><img src="docs/banner.svg" alt="DSH Pack" width="720"/></p>
 
@@ -34,12 +34,12 @@
 ```text
 https://github.com/myYangyunfan/dsh-pack.git
 ```
-- **无需等待 npm 发版**：直接拉取最新代码，一键装齐全部 29 个插件。
+- **无需等待 npm 发版**：直接拉取最新代码，一键装齐全部 24 个插件。
 - 仓库根目录已内置自装载描述与聚合补丁（`cordis.patch.yml`），由客户端直接识别装配。
 
 ### 方式 B：按 npm 包名安装（`@dsh-pack/all`）
 
-在输入框输入 `@dsh-pack/all` 即可一键装齐全部 29 个插件。
+在输入框输入 `@dsh-pack/all` 即可一键装齐全部 24 个插件。
 或直接对会话中的 Agent 说：「用 install_bundle 装 `@dsh-pack/all`」。
 
 > **命令行装不了。** `dsh plugin --profile desktop …` 会被官方 CLI 硬拦
@@ -59,25 +59,33 @@ https://github.com/myYangyunfan/dsh-pack.git
 
 | 分组 | 内容 | 体积 | 说明 |
 | --- | --- | --- | --- |
-| 基础体验（18 个） | 余额与费用、文件变更追踪与还原、拖入/粘贴、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、消息撤回、工作区锚定、系统提示词自定义 | 小 | 无原生模块，装完就生效 |
-| 较重 UI / 宿主路由（9 个） | 右侧栏、MCP/skills 面板、synapse 画布、视觉与推理档位、prompt 优化、社区市场、zcode 历史迁移、`harness-pet` | 中 | `harness-pet` 出厂是关的 |
-| `dsh-cardian` + `graph-memory` | 知识库 + 跨会话图谱记忆 | ~85MB | 两者出厂都是关的；**放行构建脚本的是 `graph-memory`**（`@photostructure/sqlite`），`dsh-cardian` 没有原生依赖 |
+| 基础体验（16 个） | 余额与费用、文件变更投影、输入历史与折叠、自动压缩、变更审核、峰谷价提醒、设置页整理、Quest 界面、子代理快视、目标收尾、消息撤回、工作区锚定、系统提示词自定义 | 小 | 无原生模块，装完就生效 |
+| 较重 UI / 宿主路由（5 个） | 右侧栏、MCP/skills 面板、synapse 画布、prompt 优化、zcode 历史迁移 | 中 | |
 | `dsh-pocket` | 手机扫码镜像/遥控 | ~45MB | 上游包，GPL-2.0，我们不 fork |
 | `dsh-openclaw-bridge` | 微信 / 飞书渠道桥 | ~15MB | |
 | `billion-context-dsh` | ACP 上下文压缩后端 | ~35MB | 装上即开启 |
 
-### 两件必须知道的事
+### 与 DSH Desktop 内置件的一致性
 
-**① 启用/停用插件要重启应用，不是刷新页面。**
+与桌面客户端 `dsh-desktop/assets/plugins/` 同名的共享成员，必须与客户端内置件**同版本、同代码**。
+唯一允许的差量是包名改写（`@dsh-pack/<dir>`）、`cordis.patch.yml` 的 loader 行名，以及
+「退役桌面壳私有符号」的 dead-path 清理。
+
+客户端 29 个内置件里有 5 个**刻意不进** PACK：
+
+| 内置件 | 不收录原因 |
+| --- | --- |
+| `dsh-session-manager` | 依赖桌面壳 preload（`window.dshDesktop.restartService/openPath`）与桌面专属会话管理面 |
+| `dsh-wsl-settings` | WSL 后端是 Tauri 壳能力，官方客户端没有该后端（见 [`docs/wsl.md`](docs/wsl.md)） |
+| `dsh-builtin-manager` | 启停走桌面壳 `dsh:plugin-set-enabled` 桥；官方客户端有自己的插件管理页 |
+| `dsh-side-session` / `dsh-super-injector` | 随包副本没有 LICENSE 原文，不能转分发（见 [`not-shipped/README.md`](not-shipped/README.md)） |
+
+其余 24 个共享成员全部在册，PACK 里没有客户端之外的成员。
+
+### 必须知道的一件事
+
+**启用/停用插件要重启应用，不是刷新页面。**
 官方宿主只在进程启动时抓一次页内注入清单，之后是快照。按 F5 看不到效果。
-
-**② 带 `graph-memory` 的安装会要求你放行一次构建脚本。**
-pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sqlite` 带
-`"install": "node-gyp-build"`，所以第一次装会失败并列出待放行包。
-在「设置 → 插件」页面点 **「Allow these scripts and retry」** 即可，之后不再询问。
-
-（不用担心要装编译工具链：该包六个平台的**预编译二进制都在包内**，含 `win32-x64`/`win32-arm64`，
-运行期直接取用。这道点击只是让安装器闭嘴。）
 
 ---
 
@@ -87,7 +95,7 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 
 - **`dsh-balance`** 余额坞：会话区显示账户余额 + 本轮估算费用，含峰谷价与周末折扣判定。
   官方客户端本身**没有**任何余额功能，这是本包补的最大一个洞。
-- **`dsh-file-changes` / `dsh-client-file-changes`** 「本会话改了哪些文件」视图 + 逐条 diff + **一键还原**。
+- **`dsh-file-changes`** 会话文件更改投影：为内核的「文件」视图与回退提供数据。
 - **`dsh-input-history`** 像终端那样用 ↑/↓ 翻本会话发过的消息；**`dsh-input-fold`** 折叠超长 prompt。
 - **`dsh-auto-compact`** 接近上下文上限时自动 `/compact`。
 - **`dsh-change-review`** 让模型复核自己刚写的改动（正确性 / 安全 / 是否切题）。
@@ -96,6 +104,7 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 - **`dsh-conversation-tweaks`** 折叠超长输出 + 右侧会话导航轨。
 - **`dsh-quest-ui`** 任务式沉浸界面（默认关）。
 - **`dsh-subagent-lens`** 子代理/Task 委派的展开式活动视图。
+- **`dsh-goal-completion`** 右栏「目标收尾」标签页：显示会话目标状态机，并补上官方 GoalBar 没暴露的 complete 动词。
 - **`dsh-settings-nav-custom` / `dsh-settings-groups`** 设置页左侧导航显隐重排 + 低频项折叠成「高级」。
 - **`dsh-prompt-custom`** 定制内核注入的系统提示。
 - **`dsh-workspace-anchor`** 给稳定系统提示注入紧凑的 `{{cwd}}` 偏好块，让 agent 守在工作区里。
@@ -106,11 +115,8 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
   按会话隔离。用的是内核公开的右栏标签 API，不是改内核。
 - **`dsh-basics-panel`** 一处集中查看/管理 MCP server、skills、rules。
 - **`dsh-synapse`** 可拖拽缩放的非线性会话画布（分支、追问）。
-- **`dsh-reasoning-effort`** 从模型目录取 `reasoning.efforts` 的 Codex 风格模型/思考档位选择器。
 - **`dsh-prompt-optimizer`** 一键把输入区草稿打磨成结构化 prompt。
-- **`dsh-community-market`** 可视化插件市场：开放目录源、搜索、校验过的 npm 安装、开关与回执。
 - **`dsh-zcode-migrate`** 把 zcode CLI 的 SQLite 历史转成原生 dsh 会话日志。
-- **`harness-pet`** *（出厂关）* 一只页内小鲸鱼。
 
 > 原先这一层还含 `dsh-side-session`（浮动窗口临时会话）与 `dsh-super-injector`
 > （运行时插件注入器）。查证后两者**不由我们发布**：前者上游仓库存在但没有任何 LICENSE
@@ -120,15 +126,13 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 
 ### 可选大件
 
-- **`knowledge`** — `dsh-cardian`（RepoWiki / 知识卡片 / 记忆 → 本地 Obsidian vault）
-  + `graph-memory`（跨会话知识图谱：PageRank、社区检测、向量去重）。
 - **`pocket`** — 手机扫码实时镜像并操作桌面 Web UI，走局域网或公网隧道。
 - **`bridge`** — 微信 / 飞书官方渠道接进 dsh agent 会话。
 - **`compaction`** — 用 ACP 模型驱动的上下文裁剪替换内置压缩后端。
 
 完整清单与每个插件的开关，装好之后在「设置 → 插件」里能直接看到。
 
-> **已退役成员**：`dsh-vision`（识图）、`dsh-file-drop`（文件拖拽/导入）及 `dsh-image-paste`（图片粘贴）已退役并移出元包，因官方客户端已全面原生支持输入框附件导入、文件拖拽导入、剪贴板图片粘贴与多模态端点识图，避免与官方功能重复与冲突。
+> **已退役成员**：`dsh-vision`（识图）、`dsh-file-drop`（文件拖拽/导入）、`dsh-image-paste`（图片粘贴）、`dsh-client-file-changes`（文件视图，官方内核原生接走）与 `dsh-reasoning-effort`（推理档位，内核 0.2.1 已整块内置）已退役并移出元包，避免与官方功能重复与冲突。
 
 ---
 
@@ -140,7 +144,6 @@ pnpm 11 默认拦依赖的 install 脚本，而它的依赖 `@photostructure/sql
 | --- | --- |
 | 托盘常驻、关窗最小化到托盘、一键重启 | **没有**（官方无托盘概念） |
 | 会话完成的**系统级**通知、任务栏闪烁 | 降级为页内提醒（宿主不给原生 toast） |
-| `harness-pet` 的**原生悬浮窗** | 只有页内宠物 |
 | WSL 后端（把内核跑在 WSL 发行版里） | **没有**，见 `docs/wsl.md`（如何在 WSLg 里跑官方客户端） |
 | 自定义应用图标（含改 .lnk 快捷方式） | **没有** |
 | 自制壳那条 36px 玻璃标题栏 + ⋯ 菜单 | 官方用自己的原生窗口装饰 |
