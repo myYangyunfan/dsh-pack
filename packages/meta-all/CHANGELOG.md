@@ -1,5 +1,16 @@
 # @dsh-pack/all
 
+## 0.3.0
+
+### Minor Changes
+
+- 从聚合元包中摘除 `dsh-cardian`、`graph-memory`、`dsh-community-market`、`harness-pet` 四个成员（源码目录一并删除）。成员数 28 → 24，元包补丁层与 `dependencies` 同步收缩；现成员集合不再包含任何带 `install` 脚本的原生依赖，安装时不会再触发 pnpm 构建门禁。
+
+### Patch Changes
+
+- Updated dependencies [`41651ee`]:
+  - @dsh-pack/dsh-better-sidebar@0.24.3
+
 ## 0.2.0
 
 ### Minor Changes
