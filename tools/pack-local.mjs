@@ -69,6 +69,8 @@ writeFileSync(join(OUT, 'MANIFEST.txt'), lines.join('\n') + '\n');
 // 不查 already-installed（内核 parseInstallSpec 的 tarball 分支），所以粘错了它真会去装。
 // 现成员集合没有原生 install 脚本，不再需要「原生依赖放最后」的排序。
 const NOT_INSTALLABLE = new Set(['@dsh-pack/all', '@dsh-pack/host-capabilities']);
+// 提示语里那个版本号不能写死：每次 changesets 发版它都变，写死的就是下一次误导人的来源。
+const metaVersion = () => JSON.parse(readFileSync(join(ROOT, 'meta-all', 'package.json'), 'utf8')).version;
 const installable = rows.filter((r) => !NOT_INSTALLABLE.has(r.name));
 const ordered = [
   ...installable.filter((r) => r.name === '@dsh-pack/billion-context-dsh'),
@@ -79,7 +81,8 @@ const pathLines = [
   '# 前置：先把 @dsh-pack/all 的开关关掉（停用，不卸载），否则成员的行会被插入两次。',
   '# 顺序：第 1 条是「每轮对话 TypeError」的正主。',
   '# 想「一条装齐」别在这儿凑：走 INSTALL.md §3 的通道 A（本机 registry + 按名装',
-  '# @dsh-pack/all@^0.2.0）—— 元包的 tarball 路径粘进来会被陈旧的 ^0.1.0 声明噎死。',
+  `# @dsh-pack/all@^${metaVersion()}）—— 元包的 tarball 路径粘进来会被 profile 里那条陈旧`,
+  '# 版本声明噎死。',
   '# 本文件由 node tools/pack-local.mjs 生成；详细步骤见同目录 INSTALL.md。',
   '',
   ...ordered.map((r, i) => `${String(i + 1).padStart(2)}. ${join(OUT, r.file).replace(/\\/g, '/')}`),

@@ -52,7 +52,9 @@ jobs:
         id: ver
         uses: changesets/action@v1
         with:
-          install: pnpm install --frozen-lockfile=false --ignore-scripts --filter '!@dsh-pack/all'
+          # 这里**不写** install: —— changesets/action@v1 没有这个输入（CI 注解实测
+          # `Unexpected input(s) 'install'`），写了不报错但整条被忽略，看起来像生效了。
+          # 真正的安装走上面那一步显式的 pnpm install（带 --ignore-scripts 与 filter）。
           version: pnpm changeset version
           # 用 changeset publish 而不是 pnpm -r publish：
           # 它会读 .changeset/pre.json 决定 dist-tag，能正确处理 prerelease 包。

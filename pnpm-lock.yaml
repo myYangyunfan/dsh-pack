@@ -597,7 +597,7 @@ importers:
         specifier: ^0.4.2
         version: link:../dsh-basics-panel
       '@dsh-pack/dsh-better-sidebar':
-        specifier: ^0.24.2
+        specifier: ^0.24.3
         version: link:../dsh-better-sidebar
       '@dsh-pack/dsh-change-review':
         specifier: ^0.1.2
