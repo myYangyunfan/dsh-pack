@@ -244,12 +244,18 @@ function winPath(p) {
  * `Option --force-local is not supported`，整条产物审计全红（2026-10-19 CI 实测）。
  * bsdtar 本来就不需要这个旗标，所以先按 GNU 试，命中那句报错就退回不带旗标的一次。
  * 与 tools/itest/pack-audit.mjs 的 listTarball 同一套姿势。
+ *
+ * 还有第二处平台差：**bsdtar 按原生文本模式输出，条目行尾是 CRLF**。留在 `\r` 上，
+ * `/\/package\.json$/` 这类锚在 `$` 的判据就永远配不上 —— 实测同一份 tarball 在
+ * ubuntu runner 上条目数一致却判绿、windows runner 上报「缺 package.json」（2026-10-19，
+ * J2 因此整批红）。所以在这里一次性把 `\r` 去掉，让调用方拿到与平台无关的行。
  */
 function listTarball(tgz) {
-  const primary = sh('tar', ['--force-local', '-tzf', tgz]);
+  const normalize = (r) => ({ ...r, stdout: (r.stdout || '').replace(/\r/g, '') });
+  const primary = normalize(sh('tar', ['--force-local', '-tzf', tgz]));
   if (primary.status === 0) return primary;
   if (!/--force-local/i.test(`${primary.stderr || ''}${primary.stdout || ''}`)) return primary;
-  return sh('tar', ['-tzf', tgz]);
+  return normalize(sh('tar', ['-tzf', tgz]));
 }
 // Windows 上 npm 是 npm.cmd，spawnSync 不带 shell 解析不到、且**不会报错只会给空输出**
 // （第一次跑 J2 就是这样静默失败了 2 个包）。必须显式走 shell。
