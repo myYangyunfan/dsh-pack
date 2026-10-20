@@ -42,7 +42,7 @@ jobs:
           cache: pnpm
       # --filter '!@dsh-pack/all'：元包的 24 个依赖就是本仓成员，@dsh-pack 未发到 registry
       # 时装它只会 ERR_PNPM_FETCH_404；发布与门禁都只读 package.json 与源码，不需要这份拷贝。
-      - run: pnpm install --frozen-lockfile=false --filter '!@dsh-pack/all'
+      - run: pnpm install --frozen-lockfile=false --ignore-scripts --filter '!@dsh-pack/all'
 
       # 发布前必须过全部静态门禁；任一条红都不许出版本
       - name: 发布门禁 node tools/audit/index.js
@@ -86,7 +86,7 @@ jobs:
           cache: pnpm
       # --filter '!@dsh-pack/all'：元包的 24 个依赖就是本仓成员，@dsh-pack 未发到 registry
       # 时装它只会 ERR_PNPM_FETCH_404；发布与门禁都只读 package.json 与源码，不需要这份拷贝。
-      - run: pnpm install --frozen-lockfile=false --filter '!@dsh-pack/all'
+      - run: pnpm install --frozen-lockfile=false --ignore-scripts --filter '!@dsh-pack/all'
       - run: node tools/audit/index.js
       - run: pnpm -r publish --access public --tag beta --no-git-checks
         env:
