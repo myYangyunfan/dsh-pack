@@ -15,8 +15,21 @@
    - 跑 `node tools/audit/index.js` 作为**发布门禁**（任一条红就不出版本）；
    - `changesets/action` 生成/更新「版本变更集 PR」。维护者合并那个 PR 才真正触发 publish。
 
-3. publish 执行 `pnpm -r publish --access public --tag latest`。
+3. 合并版本 PR 后，`version` job 里的 publish 步骤执行
+   `pnpm changeset publish --tag latest`（用 `changeset publish` 而不是 `pnpm -r publish`：
+   它会读 `.changeset/pre.json` 决定 dist-tag，prerelease 包才不会被 npm 拒）。
    令牌来自 `secrets.NPM_TOKEN`，**不写进任何签入文件**。
+
+### 发布前置（2026-10-20 现状：两样都还没有）
+
+- **npm 上要有 `@dsh-pack` 这个 scope**：npm 的 scoped 包必须落在同名 user/organization 下，
+  账号 `myYangyunfan` 存在即可直接用 `@dsh-pack/...`，但**首发前请确认那是你的账号**。
+- **仓库 secret `NPM_TOKEN`**：npm 站点 → Access Tokens → Generate New Token → **Automation**
+  （Granular 也行，但要勾选 `@dsh-pack` scope 的 publish/read 权限），然后
+  `gh secret set NPM_TOKEN --repo myYangyunfan/dsh-pack`。
+  实测仓库当前 **一个 secret 都没有**（`gh api repos/…/actions/secrets` 返回空列表），
+  所以合并版本 PR 后 publish 一定红 —— 前面 CI/版本化都已绿，红点就落在最后这一步。
+  配好之后 `gh run rerun <版本化 job> --failed` 就能补发，不必再提一次版本 PR。
 
 版本号只有一个来源（changesets 的那次 version 提交）。
 旧那套「`dsh-desktop/package.json` + `Cargo.toml` + `tauri.conf.json` 三处同步、
@@ -106,6 +119,11 @@ node -e "const Y=require('yaml'),f=require('fs');const l=Y.parse(f.readFileSync(
 pnpm install --lockfile-only --ignore-scripts    # 只改 lock，不动 node_modules
 pnpm install --frozen-lockfile --ignore-scripts  # 判据：绿 = lock 与全部 package.json 咬合
 ```
+
+> **每次合并 Version Packages PR 之后都要补跑一次上面第一条。** changesets 改的是
+> `packages/*/package.json` 的版本号，不会碰 lock —— 于是元包对成员的 `specifier` 会停在旧
+> 版本上。2026-10-20 实测：它把 better-sidebar 升到 0.24.3，lock 里仍写 `^0.24.2`，
+> 结果版本 PR 那个提交 CI 红、合并后的 main 绿（同一个错位的两次表现）。
 
 > ⚠ 后一条会把依赖**真装进** `node_modules`，`nodeLinker: hoisted` 装不下的会落进
 > `packages/<包>/node_modules/`，其中含内核 `@deepseek-ai` 的拷贝 —— 那正是 `kernel-shadow`
